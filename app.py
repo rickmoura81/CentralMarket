@@ -3,15 +3,16 @@ from banco import criar_tabelas, conectar
 from datetime import datetime
 import sqlite3
 
+app = Flask(__name__)
+
 def get_db():
     conn = sqlite3.connect("database.db")
     conn.row_factory = sqlite3.Row
     return conn
 
-app = Flask(__name__)
-#=================================================
-#rota dashboard
-#=================================================
+# =================================================
+# rota dashboard
+# =================================================
 @app.route("/")
 def index():
     return render_template("dashboard.html")
