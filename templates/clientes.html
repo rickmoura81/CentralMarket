@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Clientes</title>
+
+<style>
+body {font-family: Arial; background:#f4f6f9; padding:20px;}
+
+.container {
+    max-width:1100px;
+    margin:auto;
+    background:white;
+    padding:30px;
+    border-radius:10px;
+    box-shadow:0 0 10px rgba(0,0,0,0.1);
+}
+
+.grid {
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap:12px;
+}
+
+input, select, textarea {
+    padding:10px;
+    border:1px solid #ccc;
+    border-radius:6px;
+    width:100%;
+}
+
+button {
+    background:#27ae60;
+    color:white;
+    border:none;
+    padding:12px;
+    border-radius:6px;
+    cursor:pointer;
+    margin-top:10px;
+}
+
+button:hover { background:#219150; }
+
+.section-title {
+    margin-top:25px;
+    font-weight:bold;
+    color:#2c3e50;
+}
+
+/* MAPA */
+.mapa-card {
+    margin-top:15px;
+    background:#fafafa;
+    border-radius:10px;
+    padding:12px;
+    box-shadow:0 4px 12px rgba(0,0,0,0.08);
+    border:1px solid #eee;
+    display:none;
+}
+
+.mapa-frame {
+    border-radius:10px;
+    overflow:hidden;
+}
+
+/* BUSCA */
+.busca-box {text-align:center; margin-top:25px;}
+.busca-box input {width:60%; max-width:400px;}
+
+#resultadoBusca {
+    list-style:none;
+    padding:0;
+    margin-top:8px;
+    max-width:400px;
+    margin:auto;
+    border:1px solid #ddd;
+    border-radius:6px;
+    background:white;
+}
+
+#resultadoBusca li {
+    padding:10px;
+    border-bottom:1px solid #eee;
+    cursor:pointer;
+}
+
+#resultadoBusca li:hover {background:#f0f0f0;}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<h2>Cadastro de Clientes</h2>
+
+<form method="POST">
+
+<div class="grid">
+<select name="tipo">
+<option value="PF">Pessoa Física</option>
+<option value="PJ">Empresa</option>
+</select>
+
+<input name="nome" placeholder="Nome">
+<input name="razao_social" placeholder="Razão Social">
+<input name="cpf" placeholder="CPF">
+<input name="cnpj" placeholder="CNPJ">
+<input name="telefone" placeholder="Telefone">
+<input name="whatsapp" placeholder="WhatsApp">
+<input name="email" placeholder="Email">
+</div>
+
+<div class="section-title">Endereço Principal</div>
+
+<div class="grid">
+<input name="cep" id="cep" placeholder="CEP">
+<input name="endereco" placeholder="Rua">
+<input name="numero" placeholder="Número">
+<input name="bairro" placeholder="Bairro">
+<input name="cidade" placeholder="Cidade">
+</div>
+
+<div class="mapa-card" id="cardMapa">
+<div class="mapa-frame" id="mapa"></div>
+</div>
+
+<div class="section-title">Endereço Entrega / Serviço</div>
+
+<div class="grid">
+<input name="cep_entrega" id="cepEntrega" placeholder="CEP entrega">
+<input name="endereco_entrega" placeholder="Rua">
+<input name="numero_entrega" placeholder="Número">
+<input name="bairro_entrega" placeholder="Bairro">
+<input name="cidade_entrega" placeholder="Cidade">
+</div>
+
+<textarea name="observacoes" placeholder="Observações"></textarea>
+
+<button>Salvar Cliente</button>
+</form>
+
+<div class="busca-box">
+<input type="text" id="buscaCliente" placeholder="🔎 Buscar cliente">
+<ul id="resultadoBusca"></ul>
+</div>
+
+</div>
+
+<script>
+
+// ===== BUSCA CLIENTE =====
+document.getElementById("buscaCliente").addEventListener("input", function(){
+    const termo=this.value;
+    const ul=document.getElementById("resultadoBusca");
+
+    if(termo.length<2){
+        ul.innerHTML="";
+        return;
+    }
+
+    fetch(`/buscar_cliente?q=${termo}`)
+    .then(r=>r.json())
+    .then(data=>{
+        ul.innerHTML="";
+        data.forEach(c=>{
+            const li=document.createElement("li");
+            li.innerHTML=`<strong>${c.nome}</strong><br>📞 ${c.telefone}`;
+            li.onclick=()=>window.location="/cliente/"+c.id;
+            ul.appendChild(li);
+        });
+    });
+});
+
+// ===== MOSTRAR MAPA =====
+function mostrarMapa(endereco){
+    const card=document.getElementById("cardMapa");
+    const mapa=document.getElementById("mapa");
+
+    card.style.display="block";
+
+    mapa.innerHTML=`<iframe width="100%" height="260" style="border:0"
+    src="https://www.google.com/maps?q=${encodeURIComponent(endereco)}&output=embed"></iframe>`;
+}
+
+// ===== CEP PRINCIPAL =====
+document.getElementById("cep").addEventListener("blur", function(){
+
+    const cep=this.value.replace(/\D/g,'');
+
+    if(cep.length!==8) return;
+
+    fetch(`https://viacep.com.br/ws/${cep}/json/`)
+    .then(r=>r.json())
+    .then(d=>{
+        if(d.erro) return;
+
+        document.querySelector("input[name='endereco']").value = d.logradouro;
+        document.querySelector("input[name='bairro']").value = d.bairro;
+        document.querySelector("input[name='cidade']").value = d.localidade;
+
+        mostrarMapa(`${d.logradouro}, ${d.bairro}, ${d.localidade}`);
+    });
+});
+
+// ===== CEP ENTREGA =====
+document.getElementById("cepEntrega").addEventListener("blur", function(){
+
+    const cep=this.value.replace(/\D/g,'');
+
+    if(cep.length!==8) return;
+
+    fetch(`https://viacep.com.br/ws/${cep}/json/`)
+    .then(r=>r.json())
+    .then(d=>{
+        if(d.erro) return;
+
+        document.querySelector("input[name='endereco_entrega']").value = d.logradouro;
+        document.querySelector("input[name='bairro_entrega']").value = d.bairro;
+        document.querySelector("input[name='cidade_entrega']").value = d.localidade;
+    });
+});
+
+</script>
+
+</body>
+</html>

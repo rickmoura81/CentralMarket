@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pedido {{ pedido.id }}</title>
+    <meta charset="UTF-8">
+
+    <style>
+        body {
+            font-family: Arial;
+            background: #f4f6f9;
+            margin: 0;
+            padding: 30px;
+        }
+
+        .container {
+            max-width: 700px;
+            margin: auto;
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        h2 {
+            margin-top: 0;
+            text-align: center;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th {
+            background: #2c3e50;
+            color: white;
+            padding: 10px;
+        }
+
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            text-align: center;
+        }
+
+        tr:hover {
+            background: #f2f2f2;
+        }
+
+        .total {
+            font-size: 24px;
+            font-weight: bold;
+            text-align: right;
+            margin-top: 15px;
+            color: #27ae60;
+        }
+
+        .pagamentos {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .btn-pag {
+            flex: 1;
+            padding: 14px;
+            font-size: 15px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            color: white;
+            font-weight: bold;
+        }
+
+        .dinheiro { background: #27ae60; }
+        .pix { background: #2980b9; }
+        .credito { background: #8e44ad; }
+        .debito { background: #d35400; }
+
+        .btn-pag:hover {
+            opacity: 0.9;
+        }
+
+        select {
+            width: 100%;
+            padding: 10px;
+            margin-top: 8px;
+            font-size: 16px;
+        }
+
+        .btn-confirmar {
+            width: 100%;
+            padding: 15px;
+            margin-top: 20px;
+            font-size: 18px;
+            background: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .btn-confirmar:hover {
+            background: #219150;
+        }
+
+        .voltar {
+            display: block;
+            text-align: center;
+            margin-top: 15px;
+            text-decoration: none;
+            color: #555;
+        }
+
+        .badge {
+            background: #2980b9;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <h2>Pedido <span class="badge">#{{ pedido.id }}</span></h2>
+
+    <table>
+        <tr>
+            <th>Produto</th>
+            <th>Qtd</th>
+            <th>Preço</th>
+            <th>Subtotal</th>
+        </tr>
+
+        {% for item in itens %}
+        <tr>
+            <td>{{ item.nome }}</td>
+            <td>{{ item.quantidade }}</td>
+            <td>R$ {{ "%.2f"|format(item.preco_unitario) }}</td>
+            <td>R$ {{ "%.2f"|format(item.subtotal) }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <div class="total">
+        Total: R$ {{ "%.2f"|format(pedido.total) }}
+    </div>
+
+    <!-- FORM PAGAMENTO -->
+    <form method="POST" action="/pagar_pedido/{{ pedido.id }}">
+
+        <input type="hidden" name="forma_pagamento" id="formaPagamento">
+
+        <p><strong>Forma de pagamento:</strong></p>
+
+        <div class="pagamentos">
+            <button type="button" class="btn-pag dinheiro"
+                onclick="selecionarForma('DINHEIRO')">💵 Dinheiro</button>
+
+            <button type="button" class="btn-pag pix"
+                onclick="selecionarForma('PIX')">📲 PIX</button>
+
+            <button type="button" class="btn-pag credito"
+                onclick="selecionarForma('CREDITO')">💳 Crédito</button>
+
+            <button type="button" class="btn-pag debito"
+                onclick="selecionarForma('DEBITO')">🏧 Débito</button>
+        </div>
+
+        <div id="bandeiras" style="display:none; margin-top:15px;">
+            <label><strong>Bandeira do cartão:</strong></label>
+
+            <select name="bandeira">
+                <option value="">Selecione</option>
+                <option value="VISA">Visa</option>
+                <option value="MASTERCARD">Mastercard</option>
+                <option value="ELO">Elo</option>
+                <option value="HIPERCARD">Hipercard</option>
+                <option value="AMEX">American Express</option>
+            </select>
+        </div>
+        <div id="areaDinheiro" style="display:none; margin-top:15px;">
+    <label><strong>Valor recebido:</strong></label>
+
+    <input type="number" step="0.01" id="valorRecebido"
+           oninput="calcularTroco()" placeholder="0.00">
+
+    <p><strong>Troco:</strong> R$
+        <span id="troco">0.00</span>
+    </p>
+</div>
+
+        <button type="submit" class="btn-confirmar">
+            Confirmar Pagamento
+        </button>
+
+    </form>
+
+    <a class="voltar" href="/caixa_pedidos">⬅ Voltar</a>
+
+</div>
+
+<script>
+function selecionarForma(forma) {
+
+    document.getElementById("formaPagamento").value = forma;
+
+    const bandeiras = document.getElementById("bandeiras");
+    const dinheiro = document.getElementById("areaDinheiro");
+
+    // mostrar bandeiras se cartão
+    if (forma === "CREDITO" || forma === "DEBITO") {
+        bandeiras.style.display = "block";
+    } else {
+        bandeiras.style.display = "none";
+    }
+
+    // mostrar troco se dinheiro
+    if (forma === "DINHEIRO") {
+        dinheiro.style.display = "block";
+    } else {
+        dinheiro.style.display = "none";
+    }
+}
+
+function calcularTroco() {
+    const total = {{ pedido.total }};
+    const recebido = parseFloat(document.getElementById("valorRecebido").value) || 0;
+
+    const troco = recebido - total;
+
+    document.getElementById("troco").innerText =
+        troco > 0 ? troco.toFixed(2) : "0.00";
+}
+</script>
+
+</body>
+</html>

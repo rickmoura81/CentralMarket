@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Cupom</title>
+
+<style>
+body {
+    width: 300px; /* largura tipo térmica */
+    font-family: monospace;
+    font-size: 14px;
+}
+
+.center {
+    text-align: center;
+}
+
+hr {
+    border: none;
+    border-top: 1px dashed black;
+}
+</style>
+</head>
+<body>
+
+<div class="center">
+    <strong>SUA LOJA</strong><br>
+    CNPJ: 00.000.000/0001-00<br>
+    ---------------------------
+</div>
+
+Pedido: {{ pedido.id }} <br>
+Data: {{ data }}<br>
+
+<hr>
+
+{% for item in itens %}
+{{ item.nome }}<br>
+{{ item.quantidade }} x {{ "%.2f"|format(item.preco_unitario) }}
+= {{ "%.2f"|format(item.subtotal) }}<br>
+{% endfor %}
+
+<hr>
+
+TOTAL: R$ {{ "%.2f"|format(pedido.total) }}<br>
+Pagamento: {{ pedido.forma_pagamento }}
+
+<hr>
+
+<div class="center">
+    Obrigado pela preferência!
+</div>
+
+<script>
+window.print();
+window.onafterprint = () => window.close();
+</script>
+
+</body>
+</html>

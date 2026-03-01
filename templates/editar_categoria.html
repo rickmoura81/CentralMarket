@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="card">
+<h2>Editar Categoria</h2>
+
+<form method="POST">
+    Nome:<br>
+    <input type="text" name="nome" value="{{ categoria.nome }}">
+    <button type="submit">Salvar</button>
+</form>
+
+</div>
+
+{% endblock %}

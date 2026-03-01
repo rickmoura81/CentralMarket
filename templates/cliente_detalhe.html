@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Cliente</title>
+
+<style>
+body { font-family: Arial; background:#f4f6f9; padding:20px; }
+.box {
+    background:white;
+    padding:25px;
+    border-radius:10px;
+    max-width:600px;
+    margin:auto;
+    box-shadow:0 0 10px rgba(0,0,0,0.1);
+}
+button {
+    padding:10px 15px;
+    border:none;
+    border-radius:6px;
+    cursor:pointer;
+    color:white;
+    margin-right:10px;
+}
+.editar { background:#2980b9; }
+.excluir { background:#c0392b; }
+.voltar { background:#7f8c8d; }
+</style>
+</head>
+<body>
+
+<div class="box">
+
+<h2>
+{% if cliente.tipo == "PJ" %}
+{{ cliente.razao_social }}
+{% else %}
+{{ cliente.nome }}
+{% endif %}
+</h2>
+
+<p><strong>Telefone:</strong> {{ cliente.telefone }}</p>
+<p><strong>WhatsApp:</strong> {{ cliente.whatsapp }}</p>
+<p><strong>Email:</strong> {{ cliente.email }}</p>
+
+<p><strong>CPF:</strong> {{ cliente.cpf }}</p>
+<p><strong>CNPJ:</strong> {{ cliente.cnpj }}</p>
+
+<p><strong>Endereço:</strong>
+{{ cliente.endereco }}, {{ cliente.numero }} —
+{{ cliente.bairro }} / {{ cliente.cidade }}
+</p>
+
+{% if cliente.endereco_entrega %}
+<p><strong>Entrega/Serviço:</strong>
+{{ cliente.endereco_entrega }}, {{ cliente.numero_entrega }} —
+{{ cliente.bairro_entrega }} / {{ cliente.cidade_entrega }}
+</p>
+{% endif %}
+
+<p><strong>Observações:</strong> {{ cliente.observacoes }}</p>
+
+<br>
+
+<a href="/editar_cliente/{{ cliente.id }}">
+    <button class="editar">Editar</button>
+</a>
+
+<a href="/excluir_cliente/{{ cliente.id }}"
+   onclick="return confirm('Excluir cliente?')">
+    <button class="excluir">Excluir</button>
+</a>
+
+<a href="/clientes">
+    <button class="voltar">Voltar</button>
+</a>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h2>Editar Produto</h2>
+
+<form method="POST">
+
+    SKU:<br>
+    <input type="text" name="sku" value="{{ produto.sku }}"><br><br>
+
+    Nome:<br>
+    <input type="text" name="nome" value="{{ produto.nome }}"><br><br>
+
+    Código Fabricante:<br>
+    <input type="text" name="codigo_fabricante" value="{{ produto.codigo_fabricante }}"><br><br>
+
+    Código Barras:<br>
+    <input type="text" name="codigo_barras" value="{{ produto.codigo_barras }}"><br><br>
+
+    Categoria:<br>
+    <select name="categoria_id">
+        {% for categoria in categorias %}
+            <option value="{{ categoria.id }}"
+                {% if categoria.id == produto.categoria_id %}selected{% endif %}>
+                {{ categoria.nome }}
+            </option>
+        {% endfor %}
+    </select><br><br>
+
+    Fornecedor:<br>
+    <select name="fornecedor_id">
+        {% for fornecedor in fornecedores %}
+            <option value="{{ fornecedor.id }}"
+                {% if fornecedor.id == produto.fornecedor_id %}selected{% endif %}>
+                {{ fornecedor.nome }}
+            </option>
+        {% endfor %}
+    </select><br><br>
+
+    Preço Custo:<br>
+    <input type="number" step="0.01" name="preco_custo" id="preco_custo"
+    value="{{ produto.preco_custo }}"><br><br>
+
+    Lucro %:<br>
+    <input type="number" step="0.01" id="lucro_percentual"><br><br>
+
+    Preço Venda:<br>
+    <input type="number" step="0.01" name="preco_venda" id="preco_venda"
+    value="{{ produto.preco_venda }}"><br><br>
+
+    Unidade:<br>
+    <input type="text" name="unidade" value="{{ produto.unidade }}"><br><br>
+
+    Estoque:<br>
+    <input type="number" name="estoque" value="{{ produto.estoque }}"><br><br>
+
+    Estoque Mínimo:<br>
+    <input type="number" name="estoque_minimo" value="{{ produto.estoque_minimo }}"><br><br>
+
+    NCM:<br>
+    <input type="text" name="ncm" value="{{ produto.ncm }}"><br><br>
+
+    <button type="submit">Salvar Alterações</button>
+</form>
+
+<br>
+<a href="/produtos">Voltar</a>
+
+<script>
+let custo = document.getElementById("preco_custo");
+let venda = document.getElementById("preco_venda");
+let lucro = document.getElementById("lucro_percentual");
+
+function calcularVenda() {
+    let c = parseFloat(custo.value) || 0;
+    let p = parseFloat(lucro.value) || 0;
+    venda.value = (c + (c * p / 100)).toFixed(2);
+}
+
+function calcularPercentual() {
+    let c = parseFloat(custo.value) || 0;
+    let v = parseFloat(venda.value) || 0;
+
+    if (c > 0) {
+        lucro.value = (((v - c) / c) * 100).toFixed(2);
+    }
+}
+
+custo.addEventListener("input", calcularVenda);
+lucro.addEventListener("input", calcularVenda);
+venda.addEventListener("input", calcularPercentual);
+
+window.onload = function() {
+    calcularPercentual();
+}
+</script>
+
+{% endblock %}

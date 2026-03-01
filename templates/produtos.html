@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="card">
+    <h2>Cadastro de Produto</h2>
+
+    <form method="POST">
+
+        <label>SKU</label>
+        <input type="text" name="sku" required>
+
+        <label>Nome</label>
+        <input type="text" name="nome" required>
+
+        <label>Código de Barras</label>
+        <input type="text" name="codigo_barras">
+
+        <label>Código do Fabricante</label>
+        <input type="text" name="codigo_fabricante">
+
+        <label>Categoria</label>
+        <select name="categoria_id" required>
+            {% for categoria in categorias %}
+                <option value="{{ categoria.id }}">{{ categoria.nome }}</option>
+            {% endfor %}
+        </select>
+
+        <label>Fornecedor</label>
+        <select name="fornecedor_id" required>
+            {% for fornecedor in fornecedores %}
+                <option value="{{ fornecedor.id }}">{{ fornecedor.razao_social }}</option>
+            {% endfor %}
+        </select>
+
+        <label>Preço de Custo</label>
+        <input type="number" step="0.01" id="preco_custo" name="preco_custo" required>
+
+        <label>Margem (%)</label>
+        <input type="number" step="0.01" id="margem">
+
+        <label>Preço de Venda</label>
+        <input type="number" step="0.01" id="preco_venda" name="preco_venda" required>
+
+        <label>Unidade</label>
+        <input type="text" name="unidade">
+
+        <label>Estoque Mínimo</label>
+        <input type="number" name="estoque_minimo">
+
+        <label>NCM</label>
+        <input type="text" name="ncm">
+
+        <button type="submit">Salvar</button>
+    </form>
+</div>
+
+<form method="GET">
+    <input type="text" name="busca" placeholder="Buscar por nome, SKU, FAB ou código de barras">
+    <button type="submit">Buscar</button>
+</form>
+
+<div class="card">
+    <h2>Lista de Produtos</h2>
+
+<table border="1" width="100%" cellpadding="8">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Nome</th>
+            <th>SKU</th>
+            <th>FAB</th>
+            <th>Estoque</th>
+            <th>Preço Venda</th>
+            <th>Ações</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for produto in produtos %}
+        <tr>
+            <td>{{ produto.id }}</td>
+            <td>{{ produto.nome }}</td>
+            <td>{{ produto.sku }}</td>
+            <td>{{ produto.codigo_fabricante }}</td>
+            <td><a href="/editar/{{ produto.id }}">✏️ Editar</a></td>
+            <td>
+    {% if produto.estoque <= produto.estoque_minimo %}
+        <span style="color:red; font-weight:bold;">
+            {{ produto.estoque }} ⚠ ESTOQUE BAIXO
+        </span>
+    {% else %}
+        {{ produto.estoque }}
+    {% endif %}
+</td>
+            <td>R$ {{ produto.preco_venda }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+</div>
+
+<script>
+let ultimoAlterado = null;
+
+const custo = document.getElementById("preco_custo");
+const margem = document.getElementById("margem");
+const venda = document.getElementById("preco_venda");
+
+margem.addEventListener("input", function() {
+    ultimoAlterado = "margem";
+    if (custo.value !== "") {
+        venda.value = (custo.value * (1 + margem.value / 100)).toFixed(2);
+    }
+});
+
+venda.addEventListener("input", function() {
+    ultimoAlterado = "venda";
+    if (custo.value > 0) {
+        margem.value = (((venda.value - custo.value) / custo.value) * 100).toFixed(2);
+    }
+});
+
+custo.addEventListener("input", function() {
+    if (ultimoAlterado === "margem") {
+        venda.value = (custo.value * (1 + margem.value / 100)).toFixed(2);
+    }
+    if (ultimoAlterado === "venda" && custo.value > 0) {
+        margem.value = (((venda.value - custo.value) / custo.value) * 100).toFixed(2);
+    }
+});
+</script>
+
+{% endblock %}

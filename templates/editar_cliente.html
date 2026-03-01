@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Editar Cliente</title>
+
+<style>
+body {font-family: Arial; background:#f4f6f9; padding:20px;}
+.container {
+max-width:700px;
+margin:auto;
+background:white;
+padding:25px;
+border-radius:10px;
+box-shadow:0 0 10px rgba(0,0,0,0.1);
+}
+input, textarea {
+width:100%;
+padding:10px;
+margin-bottom:10px;
+border:1px solid #ccc;
+border-radius:6px;
+}
+button {
+padding:10px 15px;
+border:none;
+border-radius:6px;
+cursor:pointer;
+color:white;
+}
+.salvar { background:#27ae60; }
+.voltar { background:#7f8c8d; }
+
+.mapa-card {
+margin-top:15px;
+background:#fafafa;
+border-radius:10px;
+padding:12px;
+box-shadow:0 4px 12px rgba(0,0,0,0.08);
+border:1px solid #eee;
+display:none;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<h2>Editar Cliente</h2>
+
+<form method="POST">
+
+<input name="nome" value="{{ cliente.nome }}" placeholder="Nome">
+<input name="razao_social" value="{{ cliente.razao_social }}" placeholder="Razão Social">
+<input name="telefone" value="{{ cliente.telefone }}" placeholder="Telefone">
+<input name="whatsapp" value="{{ cliente.whatsapp }}" placeholder="WhatsApp">
+<input name="email" value="{{ cliente.email }}" placeholder="Email">
+<input name="cpf" value="{{ cliente.cpf }}" placeholder="CPF">
+<input name="cnpj" value="{{ cliente.cnpj }}" placeholder="CNPJ">
+
+<h3>Endereço Principal</h3>
+
+<input name="cep" id="cepEdit" value="{{ cliente.cep }}" placeholder="CEP">
+<input name="endereco" value="{{ cliente.endereco }}" placeholder="Rua">
+<input name="numero" value="{{ cliente.numero }}" placeholder="Número">
+<input name="bairro" value="{{ cliente.bairro }}" placeholder="Bairro">
+<input name="cidade" value="{{ cliente.cidade }}" placeholder="Cidade">
+
+<div class="mapa-card" id="cardMapaEdit">
+<div id="mapaEdit"></div>
+</div>
+
+<h3>Endereço Entrega / Serviço</h3>
+
+<input name="cep_entrega" id="cepEntregaEdit" value="{{ cliente.cep_entrega }}" placeholder="CEP entrega">
+<input name="endereco_entrega" value="{{ cliente.endereco_entrega }}" placeholder="Rua">
+<input name="numero_entrega" value="{{ cliente.numero_entrega }}" placeholder="Número">
+<input name="bairro_entrega" value="{{ cliente.bairro_entrega }}" placeholder="Bairro">
+<input name="cidade_entrega" value="{{ cliente.cidade_entrega }}" placeholder="Cidade">
+
+<textarea name="observacoes">{{ cliente.observacoes }}</textarea>
+
+<button class="salvar">Salvar</button>
+<a href="/cliente/{{ cliente.id }}"><button type="button" class="voltar">Cancelar</button></a>
+
+</form>
+</div>
+
+<script>
+function mostrarMapa(end){
+const card=document.getElementById("cardMapaEdit");
+const mapa=document.getElementById("mapaEdit");
+card.style.display="block";
+mapa.innerHTML=`<iframe width="100%" height="260" style="border:0"
+src="https://www.google.com/maps?q=${encodeURIComponent(end)}&output=embed"></iframe>`;
+}
+
+// CEP principal
+document.getElementById("cepEdit").addEventListener("blur", function(){
+const cep=this.value.replace(/\D/g,'');
+if(cep.length!==8) return;
+
+fetch(`https://viacep.com.br/ws/${cep}/json/`)
+.then(r=>r.json())
+.then(d=>{
+if(d.erro) return;
+document.querySelector("input[name='endereco']").value=d.logradouro;
+document.querySelector("input[name='bairro']").value=d.bairro;
+document.querySelector("input[name='cidade']").value=d.localidade;
+mostrarMapa(`${d.logradouro}, ${d.bairro}, ${d.localidade}`);
+});
+});
+
+// CEP entrega
+document.getElementById("cepEntregaEdit").addEventListener("blur", function(){
+const cep=this.value.replace(/\D/g,'');
+if(cep.length!==8) return;
+
+fetch(`https://viacep.com.br/ws/${cep}/json/`)
+.then(r=>r.json())
+.then(d=>{
+if(d.erro) return;
+document.querySelector("input[name='endereco_entrega']").value=d.logradouro;
+document.querySelector("input[name='bairro_entrega']").value=d.bairro;
+document.querySelector("input[name='cidade_entrega']").value=d.localidade;
+});
+});
+</script>
+
+</body>
+</html>

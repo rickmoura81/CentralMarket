@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PDV</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            background-color: #f4f6f9;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        .busca-area {
+            width: 40%;
+            background: white;
+            padding: 20px;
+            border-right: 2px solid #ddd;
+        }
+
+        .carrinho-area {
+            width: 60%;
+            padding: 20px;
+        }
+
+        input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        ul {
+            list-style: none;
+            padding: 0;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        ul li {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+        }
+
+        ul li:hover {
+            background: #f0f0f0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        th, td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            text-align: center;
+        }
+
+        th {
+            background: #2c3e50;
+            color: white;
+        }
+
+        .total-box {
+            font-size: 28px;
+            font-weight: bold;
+            text-align: right;
+            margin-top: 20px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 15px;
+            font-size: 18px;
+            background: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .btn:hover {
+            background: #219150;
+        }
+
+        .btn-remover {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 5px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .servico-tag {
+            background: #2980b9;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            margin-left: 6px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <!-- BUSCA -->
+    <div class="busca-area">
+        <h2>🔎 Buscar</h2>
+        <input type="text" id="buscaProduto" placeholder="Produto ou Serviço">
+        <input type="number" id="quantidadeProduto" value="1" min="1">
+        <ul id="resultadoBusca"></ul>
+    </div>
+
+    <!-- CARRINHO -->
+    <div class="carrinho-area">
+        <h2>🛒 Carrinho</h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Item</th>
+                    <th>Qtd</th>
+                    <th>Preço</th>
+                    <th>Subtotal</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="tabelaCarrinho"></tbody>
+        </table>
+
+        <div class="total-box">
+            Total: R$ <span id="totalGeral">0.00</span>
+        </div>
+        <button class="btn" onclick="gerarPedido()">Gerar Pedido</button>
+        <button class="btn" onclick="finalizarVenda()">Finalizar Venda</button>
+    </div>
+
+</div>
+
+<script>
+let carrinho = [];
+
+// =============================
+// ATUALIZA CARRINHO
+// =============================
+function atualizarCarrinho() {
+    const tabela = document.getElementById("tabelaCarrinho");
+    tabela.innerHTML = "";
+    let total = 0;
+
+    carrinho.forEach((item, index) => {
+        const subtotal = item.quantidade * item.preco;
+        total += subtotal;
+
+        tabela.innerHTML += `
+            <tr>
+                <td>
+                    ${item.nome}
+                    ${item.tipo === 'SERVICO' ? '<span class="servico-tag">Serviço</span>' : ''}
+                </td>
+                <td>${item.quantidade}</td>
+                <td>R$ ${item.preco.toFixed(2)}</td>
+                <td>R$ ${subtotal.toFixed(2)}</td>
+                <td><button class="btn-remover" onclick="removerItem(${index})">X</button></td>
+            </tr>
+        `;
+    });
+
+    document.getElementById("totalGeral").innerText = total.toFixed(2);
+}
+
+// =============================
+// REMOVER ITEM
+// =============================
+function removerItem(index) {
+    carrinho.splice(index, 1);
+    atualizarCarrinho();
+}
+
+// =============================
+// BUSCA PRODUTO + SERVIÇO
+// =============================
+document.getElementById("buscaProduto").addEventListener("input", function() {
+    const termo = this.value;
+    if (termo.length < 2) return;
+
+    fetch(`/buscar_produto?q=${termo}`)
+        .then(res => res.json())
+        .then(data => {
+            const ul = document.getElementById("resultadoBusca");
+            ul.innerHTML = "";
+
+            data.forEach(prod => {
+
+                const preco = prod.preco_venda || prod.preco;
+
+                const li = document.createElement("li");
+                li.innerText = `${prod.nome} - R$ ${preco.toFixed(2)} (${prod.tipo})`;
+
+                li.onclick = () => {
+                    const qtd = parseInt(document.getElementById("quantidadeProduto").value);
+
+                    carrinho.push({
+                        id: prod.id,
+                        nome: prod.nome,
+                        preco: preco,
+                        quantidade: qtd,
+                        tipo: prod.tipo
+                    });
+
+                    // detectar produto que precisa instalação
+                    if(prod.nome.toLowerCase().includes("chuveiro")){
+                        if(confirm("Deseja agendar instalação deste produto?")){
+                            gerarOS(prod.nome);
+                        }
+                    }
+
+                    atualizarCarrinho();
+                    ul.innerHTML = "";
+                    document.getElementById("buscaProduto").value = "";
+                };
+
+                ul.appendChild(li);
+            });
+        });
+});
+
+// =============================
+// GERAR ORDEM DE SERVIÇO
+// =============================
+function gerarOS(produto){
+    fetch("/gerar_os_instalacao", {
+        method: "POST",
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ produto: produto })
+    });
+}
+
+// =============================
+// 🟡 GERAR PEDIDO (vai para o caixa)
+// =============================
+function gerarPedido(){
+
+    if(carrinho.length === 0){
+        alert("Carrinho vazio!");
+        return;
+    }
+
+    fetch("/gerar_pedido", {
+        method:"POST",
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({itens:carrinho})
+    })
+    .then(res => res.json())
+    .then(data=>{
+        alert("Pedido enviado ao caixa! Nº " + data.pedido_id);
+        carrinho = [];
+        atualizarCarrinho();
+    });
+}
+
+// =============================
+// 🟢 FINALIZAR VENDA (paga na hora)
+// =============================
+function finalizarVenda(){
+
+    if(carrinho.length === 0){
+        alert("Carrinho vazio!");
+        return;
+    }
+
+    fetch("/finalizar_venda", {
+        method:"POST",
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({itens:carrinho})
+    })
+    .then(res => res.json())
+    .then(data=>{
+        alert("Venda finalizada!");
+        location.reload();
+    });
+}
+</script>
+
+</body>
+</html>

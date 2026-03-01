@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+.card {
+    background:white;
+    padding:25px;
+    border-radius:10px;
+    max-width:600px;
+    margin:auto;
+    box-shadow:0 0 10px rgba(0,0,0,0.05);
+}
+input, textarea {
+    width:100%;
+    padding:8px;
+    margin-bottom:10px;
+    border-radius:6px;
+    border:1px solid #ccc;
+}
+button {
+    background:#27ae60;
+    color:white;
+    border:none;
+    padding:10px 15px;
+    border-radius:6px;
+    cursor:pointer;
+}
+button:hover { background:#219150; }
+</style>
+
+<div class="card">
+
+<h2>Editar Fornecedor</h2>
+
+<form method="POST">
+
+<label>Razão Social</label>
+<input name="razao_social" value="{{ fornecedor.razao_social }}">
+
+<label>Nome Fantasia</label>
+<input name="nome_fantasia" value="{{ fornecedor.nome_fantasia }}">
+
+<label>CNPJ</label>
+<input name="cnpj" value="{{ fornecedor.cnpj }}">
+
+<label>Telefone</label>
+<input name="telefone" value="{{ fornecedor.telefone }}">
+
+<label>Email</label>
+<input name="email" value="{{ fornecedor.email }}">
+
+<label>Vendedor</label>
+<input name="vendedor" value="{{ fornecedor.vendedor }}">
+
+<label>Telefone do vendedor</label>
+<input name="telefone_vendedor" value="{{ fornecedor.telefone_vendedor }}">
+
+<hr>
+
+<h3>Acesso ao Site</h3>
+
+<label>Site</label>
+<input name="site" value="{{ fornecedor.site }}">
+
+<label>Login</label>
+<input name="usuario_site" value="{{ fornecedor.usuario_site }}">
+
+<label>Senha</label>
+<input name="senha_site" value="{{ fornecedor.senha_site }}">
+
+<label>Observações</label>
+<textarea name="observacoes">{{ fornecedor.observacoes }}</textarea>
+
+<button type="submit">Salvar Alterações</button>
+
+
+</form>
+</div>
+
+{% endblock %}

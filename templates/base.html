@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CentralMarket ERP</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="sidebar">
+    <h2>CentralMarket</h2>
+
+    <a href="/">Dashboard</a>
+    <a href="/categorias">Categorias</a>
+    <a href="/fornecedores">Fornecedores</a>
+    <a href="/produtos">Produtos</a>
+    <a href="#">Estoque</a>
+    <a href="#">Vendas</a>
+    
+
+</div>
+
+<div class="main">
+    {% block content %}{% endblock %}
+</div>
+
+</body>
+</html>

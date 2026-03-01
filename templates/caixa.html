@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Caixa</title>
+    <meta charset="UTF-8">
+</head>
+<body>
+
+{% if caixa %}
+<h2>🟢 Caixa Aberto</h2>
+
+<p><strong>Data de abertura:</strong> {{ caixa.data_abertura }}</p>
+<p><strong>Valor inicial:</strong> R$ {{ "%.2f"|format(caixa.valor_inicial) }}</p>
+
+<hr>
+
+<p><strong>Total vendido:</strong>
+R$ <span id="totalVendas">{{ "%.2f"|format(total_vendas) }}</span></p>
+
+<p><strong>Quantidade de vendas:</strong>
+<span id="qtdVendas">{{ qtd_vendas }}</span></p>
+
+<p><strong>Valor atual no caixa:</strong>
+R$ <span id="valorAtual">
+{{ "%.2f"|format(caixa.valor_inicial + total_vendas) }}
+</span></p>
+
+<br>
+
+<form method="POST" action="/fechar_caixa">
+    <button type="submit">Fechar Caixa</button>
+</form>
+
+{% else %}
+<h2>🔴 Caixa fechado</h2>
+
+<form method="POST" action="/abrir_caixa">
+    <input type="number" step="0.01" name="valor_inicial" placeholder="Valor inicial" required>
+    <button type="submit">Abrir Caixa</button>
+</form>
+{% endif %}
+
+<hr>
+<a href="/">⬅ Voltar</a>
+
+<script>
+function atualizarCaixa() {
+    fetch("/caixa_total")
+    .then(res => res.json())
+    .then(data => {
+
+        document.getElementById("totalVendas").innerText =
+            parseFloat(data.total).toFixed(2);
+
+        document.getElementById("qtdVendas").innerText =
+            data.vendas;
+
+        const valorInicial = {{ caixa.valor_inicial if caixa else 0 }};
+        const atual = valorInicial + parseFloat(data.total);
+
+        document.getElementById("valorAtual").innerText =
+            atual.toFixed(2);
+    });
+}
+
+// atualiza automaticamente a cada 2 segundos
+setInterval(atualizarCaixa, 4000);
+</script>
+
+</body>
+</html>

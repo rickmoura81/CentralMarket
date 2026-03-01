@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<style>
+.card {
+    background: white;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.05);
+}
+
+input, textarea {
+    width: 100%;
+    padding: 8px;
+    margin-top: 4px;
+    margin-bottom: 10px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+}
+
+button {
+    background: #27ae60;
+    color: white;
+    border: none;
+    padding: 10px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #219150;
+}
+
+.lista-fornecedor {
+    border-bottom: 1px solid #eee;
+    padding: 12px 0;
+}
+
+.site-link {
+    color: #2980b9;
+    text-decoration: none;
+}
+
+.site-link:hover {
+    text-decoration: underline;
+}
+
+.senha-box {
+    background: #f4f6f9;
+    padding: 4px 8px;
+    border-radius: 6px;
+    display: inline-block;
+    font-family: monospace;
+}
+</style>
+
+<!-- 🔎 BUSCA -->
+<div class="card">
+    <h2>Buscar Fornecedor</h2>
+    <form method="GET" action="/fornecedores">
+        <input type="text" name="busca" placeholder="Empresa, CNPJ, vendedor ou telefone">
+        <button type="submit">Buscar</button>
+    </form>
+</div>
+
+<!-- ➕ CADASTRO -->
+<div class="card">
+    <h2>Cadastro de Fornecedor</h2>
+
+    <form method="POST">
+
+        <label>Razão Social</label>
+        <input type="text" name="razao_social" required>
+
+        <label>Nome Fantasia</label>
+        <input type="text" name="nome_fantasia">
+
+        <label>CNPJ</label>
+        <input type="text" name="cnpj">
+
+        <label>Telefone</label>
+        <input type="text" name="telefone">
+
+        <label>Email</label>
+        <input type="email" name="email">
+
+        <label>Nome do Vendedor</label>
+        <input type="text" name="vendedor">
+
+        <label>Telefone do Vendedor</label>
+        <input type="text" name="telefone_vendedor">
+
+        <hr>
+
+        <h3>Acesso ao Portal do Fornecedor</h3>
+
+        <label>Site</label>
+        <input type="text" name="site" placeholder="ex: b2b.fornecedor.com.br">
+
+        <label>Usuário / Login</label>
+        <input type="text" name="usuario_site">
+
+        <label>Senha</label>
+        <input type="text" name="senha_site">
+
+        <label>Observações</label>
+        <textarea name="observacoes"></textarea>
+
+        <button type="submit">Salvar</button>
+    </form>
+</div>
+
+<!-- 📋 LISTA -->
+<div class="card">
+    <h2>Lista de Fornecedores</h2>
+
+    {% for fornecedor in fornecedores %}
+    <div class="lista-fornecedor">
+
+        <strong>{{ fornecedor.razao_social }}</strong>
+        {% if fornecedor.nome_fantasia %}
+            ({{ fornecedor.nome_fantasia }})
+        {% endif %}
+        <br>
+
+        {% if fornecedor.cnpj %}
+        CNPJ: {{ fornecedor.cnpj }}<br>
+        {% endif %}
+
+        {% if fornecedor.telefone %}
+        📞 {{ fornecedor.telefone }}<br>
+        {% endif %}
+
+        {% if fornecedor.email %}
+        ✉ {{ fornecedor.email }}<br>
+        {% endif %}
+
+        {% if fornecedor.vendedor %}
+        👨‍💼 Vendedor: {{ fornecedor.vendedor }}<br>
+        {% endif %}
+
+        {% if fornecedor.telefone_vendedor %}
+        📱 {{ fornecedor.telefone_vendedor }}<br>
+        {% endif %}
+
+        {% if fornecedor.site %}
+        🌐 <a class="site-link" href="https://{{ fornecedor.site }}" target="_blank">
+            {{ fornecedor.site }}
+        </a><br>
+        {% endif %}
+
+        {% if fornecedor.usuario_site %}
+        👤 Login: {{ fornecedor.usuario_site }}<br>
+        {% endif %}
+
+        {% if fornecedor.senha_site %}
+        🔑 Senha:
+        <span class="senha-box">{{ fornecedor.senha_site }}</span><br>
+        {% endif %}
+
+        {% if fornecedor.observacoes %}
+        📝 {{ fornecedor.observacoes }}<br>
+        {% endif %}
+
+        <br>
+
+        <a href="/editar_fornecedor/{{ fornecedor.id }}">✏️ Editar</a> |
+        <a href="/excluir_fornecedor/{{ fornecedor.id }}"
+           onclick="return confirm('Deseja excluir este fornecedor?')">
+           🗑 Excluir
+        </a>
+
+    </div>
+    {% endfor %}
+</div>
+
+{% endblock %}
