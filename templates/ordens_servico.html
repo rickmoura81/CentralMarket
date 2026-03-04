@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<title>Ordens de Serviço</title>
+
+<style>
+
+body{
+font-family:Arial;
+background:#f4f6f9;
+padding:20px;
+}
+
+table{
+width:100%;
+border-collapse:collapse;
+background:white;
+}
+
+th,td{
+padding:10px;
+border-bottom:1px solid #ddd;
+text-align:center;
+}
+
+th{
+background:#2c3e50;
+color:white;
+}
+
+.status{
+background:#3498db;
+color:white;
+padding:4px 8px;
+border-radius:4px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h2>📅 Ordens de Serviço</h2>
+
+<table>
+
+<tr>
+<th>ID</th>
+<th>Serviço</th>
+<th>Data</th>
+<th>Status</th>
+</tr>
+
+{% for os in ordens %}
+
+<tr>
+
+<td>{{ os.id }}</td>
+
+<td>{{ os.servico_nome }}</td>
+
+<td>{{ os.data_agendamento[8:10] }}/{{ os.data_agendamento[5:7] }}/{{ os.data_agendamento[0:4] }}</td>
+
+<td>
+<span class="status">{{ os.status }}</span>
+</td>
+
+</tr>
+
+{% endfor %}
+
+</table>
+
+</body>
+
+</html>

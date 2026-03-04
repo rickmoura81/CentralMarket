@@ -96,6 +96,16 @@ def criar_tabelas():
         FOREIGN KEY (produto_id) REFERENCES produtos(id)
     )
     """)
+    # Criar tabela ordem_servico
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ordem_servico (
+         id INTEGER PRIMARY KEY AUTOINCREMENT,
+         servico_nome TEXT NOT NULL,
+         data_agendamento TEXT NOT NULL,
+         status TEXT DEFAULT 'Agendado',
+         data_criacao TEXT NOT NULL
+    )
+    """)
 
     conn.commit()
     conn.close()

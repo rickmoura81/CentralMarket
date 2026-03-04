@@ -12,6 +12,18 @@
     Nome:<br>
     <input type="text" name="nome" value="{{ produto.nome }}"><br><br>
 
+    Tipo:<br>
+    <select name="tipo">
+        <option value="produto"
+            {% if produto.tipo == "produto" %}selected{% endif %}>
+            Produto
+        </option>
+        <option value="servico"
+            {% if produto.tipo == "servico" %}selected{% endif %}>
+            Serviço (Mão de Obra)
+        </option>
+    </select><br><br>
+
     Código Fabricante:<br>
     <input type="text" name="codigo_fabricante" value="{{ produto.codigo_fabricante }}"><br><br>
 

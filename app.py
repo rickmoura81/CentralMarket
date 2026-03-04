@@ -239,17 +239,25 @@ def produtos():
         unidade = request.form["unidade"]
         estoque_minimo = request.form["estoque_minimo"]
         ncm = request.form["ncm"]
+        tipo = request.form["tipo"]   # 🔥 NOVO CAMPO
+
+        # 🔥 Se for serviço, não controla estoque
+        if tipo == "servico":
+            estoque = 0
+            estoque_minimo = 0
+        else:
+            estoque = 0  # começa zerado até entrada manual depois
 
         cursor.execute("""
             INSERT INTO produtos
             (sku, nome, codigo_barras, codigo_fabricante,
              categoria_id, preco_custo, preco_venda,
-             unidade, estoque_minimo, ncm, fornecedor_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             unidade, estoque, estoque_minimo, ncm, fornecedor_id, tipo)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             sku, nome, codigo_barras, codigo_fabricante,
             categoria_id, preco_custo, preco_venda,
-            unidade, estoque_minimo, ncm, fornecedor_id
+            unidade, estoque, estoque_minimo, ncm, fornecedor_id, tipo
         ))
 
         conn.commit()
@@ -312,19 +320,25 @@ def editar(id):
         estoque = request.form["estoque"]
         estoque_minimo = request.form["estoque_minimo"]
         ncm = request.form["ncm"]
+        tipo = request.form["tipo"]   # 🔥 NOVO CAMPO
+
+        # 🔥 Se for serviço, zera estoque
+        if tipo == "servico":
+            estoque = 0
+            estoque_minimo = 0
 
         cursor.execute("""
             UPDATE produtos
             SET sku = ?, nome = ?, codigo_fabricante = ?, codigo_barras = ?,
                 categoria_id = ?, fornecedor_id = ?, preco_custo = ?,
                 preco_venda = ?, unidade = ?, estoque = ?, 
-                estoque_minimo = ?, ncm = ?
+                estoque_minimo = ?, ncm = ?, tipo = ?
             WHERE id = ?
         """, (
             sku, nome, codigo_fabricante, codigo_barras,
             categoria_id, fornecedor_id, preco_custo,
             preco_venda, unidade, estoque,
-            estoque_minimo, ncm, id
+            estoque_minimo, ncm, tipo, id
         ))
 
         conn.commit()
@@ -639,11 +653,10 @@ def buscar_produto():
     conn = get_db()
     cursor = conn.cursor()
 
-    # busca inteligente
     like = f"%{termo}%"
 
     cursor.execute("""
-        SELECT id, nome, preco_venda AS preco, estoque, 'PRODUTO' AS tipo
+        SELECT id, nome, preco_venda AS preco, estoque, tipo
         FROM produtos
         WHERE
             nome LIKE ?
@@ -654,7 +667,7 @@ def buscar_produto():
         
         UNION ALL
         
-        SELECT id, nome, preco AS preco, 999 AS estoque, 'SERVICO' AS tipo
+        SELECT id, nome, preco AS preco, 999 AS estoque, 'servico' AS tipo
         FROM servicos
         WHERE nome LIKE ?
         
@@ -917,17 +930,22 @@ def pagar_pedido(id):
 
         caixa_id = caixa[0]
 
+        # ATUALIZA MOVIMENTO E VINCULA AO CAIXA
         cursor.execute("""
             UPDATE movimentos
             SET status='PAGO',
                 forma_pagamento=?,
-                bandeira=?
+                bandeira=?,
+                caixa_id=?
             WHERE id=?
-        """, (forma, bandeira, id))
+        """, (forma, bandeira, caixa_id, id))
 
         conn.commit()
+        conn.close()
+
         return redirect(f"/imprimir_cupom/{id}")
 
+    conn.close()
     return render_template("pagamento.html", pedido_id=id)
 #=================================================
 #rota gerar_pedido
@@ -1299,6 +1317,56 @@ def editar_cliente(id):
 
     return render_template("editar_cliente.html", cliente=cliente)
 
+# ================================================
+#rota criar os
+#=================================================
+from datetime import datetime
+from flask import request, jsonify
+
+@app.route("/criar_os", methods=["POST"])
+def criar_os():
+    dados = request.json
+
+    servico = dados.get("servico")
+    data_agendamento = dados.get("data")
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        INSERT INTO ordem_servico 
+        (servico_nome, data_agendamento, data_criacao)
+        VALUES (?, ?, ?)
+    """, (
+        servico,
+        data_agendamento,
+        datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ))
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({"status": "ok"})
+# ================================================
+#rota gerar_pedido
+#=================================================
+@app.route("/ordens_servico")
+def ordens_servico():
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT id, servico_nome, data_agendamento, status
+        FROM ordem_servico
+        ORDER BY data_agendamento
+    """)
+
+    ordens = cursor.fetchall()
+
+    conn.close()
+
+    return render_template("ordens_servico.html", ordens=ordens)
 # ================================================
 #rota gerar_pedido
 #=================================================
