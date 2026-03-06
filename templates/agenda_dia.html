@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<title>Agenda do Dia</title>
+
+<style>
+
+body{
+font-family:Arial;
+background:#f4f6f9;
+padding:20px;
+}
+
+h2{
+margin-bottom:20px;
+}
+
+.card{
+background:white;
+padding:15px;
+margin-bottom:10px;
+border-radius:6px;
+box-shadow:0 2px 5px rgba(0,0,0,0.1);
+}
+
+.hora{
+font-size:20px;
+font-weight:bold;
+}
+
+.servico{
+margin-top:5px;
+font-size:16px;
+}
+
+.cliente{
+margin-top:5px;
+}
+
+.telefone{
+margin-top:5px;
+}
+
+.endereco{
+margin-top:5px;
+color:#555;
+}
+
+.botoes{
+margin-top:10px;
+display:flex;
+gap:8px;
+}
+
+button{
+border:none;
+padding:6px 10px;
+border-radius:5px;
+color:white;
+cursor:pointer;
+}
+
+.btn-ligar{
+background:#3498db;
+}
+
+.btn-whatsapp{
+background:#2ecc71;
+}
+
+.btn-mapa{
+background:#e67e22;
+}
+
+.btn-iniciar{
+background:#f39c12;
+}
+
+.btn-finalizar{
+background:#27ae60;
+}
+
+.card-agendado{
+border-left:6px solid #f1c40f;
+}
+
+.card-atendimento{
+border-left:6px solid #e67e22;
+}
+
+.card-finalizado{
+border-left:6px solid #27ae60;
+}
+
+</style>
+
+</head>
+
+<body>
+  <form method="GET" style="margin-bottom:20px;">
+
+<select name="tecnico" onchange="this.form.submit()">
+
+<option value="">Todos os técnicos</option>
+
+{% for t in tecnicos %}
+
+<option value="{{ t.nome }}"
+{% if request.args.get('tecnico') == t.nome %}
+selected
+{% endif %}
+>
+{{ t.nome }}
+</option>
+
+{% endfor %}
+
+</select>
+
+</form>
+
+<h2>📅 Agenda do Dia - {{ hoje }}</h2>
+
+{% set tecnico_atual = None %}
+
+{% for os in agenda %}
+
+{% if tecnico_atual != os.tecnico %}
+
+<h3 style="margin-top:30px;">👨‍🔧 {{ os.tecnico }}</h3>
+
+{% set tecnico_atual = os.tecnico %}
+
+{% endif %}
+
+<div class="card
+{% if os.status == 'Agendado' %}
+card-agendado
+{% elif os.status == 'Em Atendimento' %}
+card-atendimento
+{% else %}
+card-finalizado
+{% endif %}
+">
+
+<div class="hora">
+⏰ {{ os.hora }}
+</div>
+
+<div class="servico">
+🔧 {{ os.servico_nome }}
+</div>
+
+<div class="cliente">
+👤 Cliente: {{ os.cliente }}
+</div>
+
+<div class="telefone">
+📞 {{ os.telefone }}
+</div>
+
+<div class="endereco">
+📍 {{ os.endereco }} {{ os.numero }} - {{ os.bairro }} - {{ os.cidade }}
+</div>
+
+<div style="margin-top:8px;">
+Status: {{ os.status }}
+</div>
+
+<div style="margin-top:10px;">
+
+{% if os.status == "Agendado" %}
+
+<a href="/mudar_status/{{ os.id }}/Em Atendimento">
+<button class="btn-iniciar">
+▶ Iniciar
+</button>
+</a>
+
+{% elif os.status == "Em Atendimento" %}
+
+<a href="/mudar_status/{{ os.id }}/Finalizado">
+<button class="btn-finalizar">
+✔ Finalizar
+</button>
+</a>
+
+{% else %}
+
+<span style="color:green;font-weight:bold;">
+✔ Serviço concluído
+</span>
+
+{% endif %}
+
+</div>
+
+<div class="botoes">
+
+<a href="tel:{{ os.telefone }}">
+<button class="btn-ligar">
+📞 Ligar
+</button>
+</a>
+
+<a href="https://wa.me/55{{ os.telefone }}" target="_blank">
+<button class="btn-whatsapp">
+💬 WhatsApp
+</button>
+</a>
+
+<a href="https://www.google.com/maps/search/?api=1&query={{ os.endereco }} {{ os.numero }} {{ os.bairro }} {{ os.cidade }}" target="_blank">
+<button class="btn-mapa">
+📍 Mapa
+</button>
+</a>
+
+</div>
+
+</div>
+
+{% endfor %}
+
+</body>
+</html>

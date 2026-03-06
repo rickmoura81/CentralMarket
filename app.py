@@ -1104,6 +1104,41 @@ def imprimir_cupom(id):
                            itens=itens,
                            data=data)
 # ================================================
+#rota cadastro funcionarios
+#=================================================
+@app.route("/funcionarios", methods=["GET","POST"])
+def funcionarios():
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    if request.method == "POST":
+
+        nome = request.form["nome"]
+        cpf = request.form["cpf"]
+        telefone = request.form["telefone"]
+        whatsapp = request.form["whatsapp"]
+        email = request.form["email"]
+        cargo = request.form["cargo"]
+        funcao = request.form["funcao"]
+        comissao = request.form["comissao"]
+        endereco = request.form["endereco"]
+
+        cursor.execute("""
+        INSERT INTO funcionarios
+        (nome,cpf,telefone,whatsapp,email,cargo,funcao,comissao,endereco)
+        VALUES (?,?,?,?,?,?,?,?,?)
+        """,(nome,cpf,telefone,whatsapp,email,cargo,funcao,comissao,endereco))
+
+        conn.commit()
+
+    cursor.execute("SELECT * FROM funcionarios")
+    lista = cursor.fetchall()
+
+    conn.close()
+
+    return render_template("funcionarios.html", funcionarios=lista)
+# ================================================
 #rota cadastro cliente
 #=================================================
 @app.route("/clientes", methods=["GET", "POST"])
@@ -1320,35 +1355,97 @@ def editar_cliente(id):
 # ================================================
 #rota criar os
 #=================================================
-from datetime import datetime
+from urllib.parse import quote
 from flask import request, jsonify
 
 @app.route("/criar_os", methods=["POST"])
 def criar_os():
-    dados = request.json
 
+    dados = request.get_json()
+
+    # dados enviados pelo javascript
     servico = dados.get("servico")
-    data_agendamento = dados.get("data")
+    data = dados.get("data")
+    hora = dados.get("hora")
+    cliente_id = dados.get("cliente_id")
+    tecnico_id = dados.get("tecnico_id")
+
+    defeito_reclamado = dados.get("defeito_reclamado")
+    produto_defeito = dados.get("produto_defeito")
+    observacao = dados.get("observacao")
 
     conn = get_db()
     cursor = conn.cursor()
 
+    # salvar ordem de serviço
     cursor.execute("""
-        INSERT INTO ordem_servico 
-        (servico_nome, data_agendamento, data_criacao)
-        VALUES (?, ?, ?)
-    """, (
+        INSERT INTO ordem_servico
+        (
+            servico_nome,
+            data_agendamento,
+            hora,
+            status,
+            cliente_id,
+            tecnico_id,
+            defeito_reclamado,
+            produto_defeito,
+            observacao,
+            data_criacao
+        )
+        VALUES (?, ?, ?, 'Agendado', ?, ?, ?, ?, ?, datetime('now'))
+    """,(
         servico,
-        data_agendamento,
-        datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        data,
+        hora,
+        cliente_id,
+        tecnico_id,
+        defeito_reclamado,
+        produto_defeito,
+        observacao
     ))
 
     conn.commit()
-    conn.close()
 
-    return jsonify({"status": "ok"})
+    # pegar ID da OS criada
+    os_id = cursor.lastrowid
+
+    # buscar cliente
+    cursor.execute("""
+        SELECT nome, whatsapp
+        FROM clientes
+        WHERE id = ?
+    """,(cliente_id,))
+
+    cliente = cursor.fetchone()
+
+    nome_cliente = cliente["nome"]
+    telefone = cliente["whatsapp"]
+
+    # mensagem para whatsapp
+    mensagem = f"""
+Olá {nome_cliente}!
+
+Sua Ordem de Serviço foi agendada.
+
+OS Nº {os_id}
+Serviço: {servico}
+Data: {data}
+Hora: {hora}
+
+CentralMarket Assistência Técnica
+"""
+
+    mensagem_url = quote(mensagem)
+
+    link_whatsapp = f"https://wa.me/55{telefone}?text={mensagem_url}"
+
+    return jsonify({
+        "status": "ok",
+        "os_id": os_id,
+        "whatsapp": link_whatsapp
+    })
 # ================================================
-#rota gerar_pedido
+#rota ordens serviço
 #=================================================
 @app.route("/ordens_servico")
 def ordens_servico():
@@ -1357,9 +1454,20 @@ def ordens_servico():
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT id, servico_nome, data_agendamento, status
-        FROM ordem_servico
-        ORDER BY data_agendamento
+    SELECT 
+        os.id,
+        os.servico_nome,
+        os.data_agendamento,
+        os.status,
+        c.nome,
+        c.telefone,
+        c.endereco,
+        c.numero,
+        c.bairro,
+        c.cidade
+    FROM ordem_servico os
+    LEFT JOIN clientes c ON os.cliente_id = c.id
+    ORDER BY os.data_agendamento
     """)
 
     ordens = cursor.fetchall()
@@ -1367,6 +1475,336 @@ def ordens_servico():
     conn.close()
 
     return render_template("ordens_servico.html", ordens=ordens)
+# ================================================
+#rota agenda do serviço hoje
+#=================================================
+@app.route("/agenda")
+def agenda():
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT id, nome FROM funcionarios")
+    tecnicos = cursor.fetchall()
+
+    conn.close()
+
+    return render_template("agenda_calendario.html", tecnicos=tecnicos)
+# ================================================
+#rota para atualizar status do serviços
+#=================================================
+@app.route("/atualizar_status/<int:id>/<status>")
+def atualizar_status(id, status):
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        UPDATE ordem_servico
+        SET status = ?
+        WHERE id = ?
+    """, (status, id))
+
+    conn.commit()
+    conn.close()
+
+    return redirect("/ordens_servico")
+# ================================================
+#rota agenda_semana
+#=================================================
+@app.route("/agenda_semana")
+def agenda_semana():
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT
+        os.id,
+        os.servico_nome,
+        os.data_agendamento,
+        os.hora,
+        c.nome AS cliente,
+        f.nome AS tecnico
+    FROM ordem_servico os
+    LEFT JOIN clientes c ON os.cliente_id = c.id
+    LEFT JOIN funcionarios f ON os.tecnico_id = f.id
+    ORDER BY os.data_agendamento, os.hora
+    """)
+
+    agenda = cursor.fetchall()
+
+    conn.close()
+
+    dias = {}
+
+    for os in agenda:
+        data = os["data_agendamento"]
+
+        if data not in dias:
+            dias[data] = []
+
+        dias[data].append(os)
+
+    return render_template("agenda_semana.html", dias=dias)
+# ================================================
+#rota agenda_dia
+#=================================================
+from datetime import datetime
+
+@app.route("/agenda_dia")
+def agenda_dia():
+
+    hoje = datetime.now().strftime("%Y-%m-%d")
+
+    tecnico = request.args.get("tecnico")
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    query = """
+    SELECT
+        os.id,
+        os.servico_nome,
+        os.hora,
+        os.status,
+        c.nome AS cliente,
+        c.telefone,
+        c.endereco,
+        c.numero,
+        c.bairro,
+        c.cidade,
+        f.nome AS tecnico
+    FROM ordem_servico os
+    LEFT JOIN clientes c ON os.cliente_id = c.id
+    LEFT JOIN funcionarios f ON os.tecnico_id = f.id
+    WHERE os.data_agendamento = ?
+    """
+
+    params = [hoje]
+
+    if tecnico:
+        query += " AND f.nome = ?"
+        params.append(tecnico)
+
+    query += " ORDER BY f.nome, os.hora"
+
+    cursor.execute(query, params)
+
+    agenda = cursor.fetchall()
+
+    cursor.execute("SELECT nome FROM funcionarios")
+    tecnicos = cursor.fetchall()
+
+    conn.close()
+
+    return render_template(
+        "agenda_dia.html",
+        agenda=agenda,
+        hoje=hoje,
+        tecnicos=tecnicos
+    )
+# ================================================
+#rota para mudar status
+#=================================================
+@app.route("/mudar_status/<int:id>/<status>")
+def mudar_status(id, status):
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        UPDATE ordem_servico
+        SET status = ?
+        WHERE id = ?
+    """, (status, id))
+
+    conn.commit()
+    conn.close()
+
+    return redirect("/agenda_dia")
+# ================================================
+#rota para listar técnicos
+#=================================================
+@app.route("/listar_tecnicos")
+def listar_tecnicos():
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT id,nome FROM funcionarios")
+
+    rows = cursor.fetchall()
+
+    conn.close()
+
+    tecnicos = []
+
+    for r in rows:
+        tecnicos.append({
+            "id": r["id"],
+            "nome": r["nome"]
+        })
+
+    return jsonify(tecnicos)
+# ================================================
+#rota para listar cliente
+#=================================================
+@app.route("/listar_clientes")
+def listar_clientes():
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT id,nome FROM clientes")
+
+    rows = cursor.fetchall()
+
+    conn.close()
+
+    clientes = []
+
+    for r in rows:
+        clientes.append({
+            "id": r["id"],
+            "nome": r["nome"]
+        })
+
+    return jsonify(clientes)
+# ================================================
+#rota gerar_pedido
+#=================================================
+# 🔹 Envia eventos para o calendário
+@app.route("/eventos_agenda")
+def eventos_agenda():
+
+    tecnico = request.args.get("tecnico")
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    query = """
+    SELECT
+        os.id,
+        os.servico_nome,
+        os.data_agendamento,
+        os.hora,
+        c.nome AS cliente,
+        f.nome AS tecnico
+    FROM ordem_servico os
+    LEFT JOIN clientes c ON os.cliente_id = c.id
+    LEFT JOIN funcionarios f ON os.tecnico_id = f.id
+    """
+
+    params = []
+
+    if tecnico:
+        query += " WHERE os.tecnico_id = ?"
+        params.append(tecnico)
+
+    cursor.execute(query, params)
+
+    dados = cursor.fetchall()
+
+    eventos = []
+
+    for os in dados:
+
+        data = os["data_agendamento"]
+
+        if os["hora"]:
+            data = f"{data}T{os['hora']}"
+
+        eventos.append({
+            "id": os["id"],
+            "title": os["servico_nome"],
+            "start": data,
+            "cliente": os["cliente"],
+            "tecnico": os["tecnico"]
+        })
+
+    conn.close()
+
+    return jsonify(eventos)
+
+
+# 🔹 Atualizar quando arrastar evento
+@app.route("/mover_evento", methods=["POST"])
+def mover_evento():
+
+    dados = request.get_json()
+
+    id = dados["id"]
+    data = dados["data"]
+
+    partes = data.split("T")
+
+    nova_data = partes[0]
+    nova_hora = None
+
+    if len(partes) > 1:
+        nova_hora = partes[1][:5]
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        UPDATE ordem_servico
+        SET data_agendamento = ?, hora = ?
+        WHERE id = ?
+    """, (nova_data, nova_hora, id))
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({"ok": True})
+# ================================================
+#rota gerar_pedido
+#=================================================
+@app.route("/salvar_diagnostico/<int:id>", methods=["POST"])
+def salvar_diagnostico(id):
+
+    diagnostico = request.form.get("diagnostico")
+    solucao = request.form.get("solucao")
+    pecas = request.form.get("pecas_trocadas")
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    UPDATE ordem_servico
+    SET diagnostico=?,
+        solucao=?,
+        pecas_trocadas=?
+    WHERE id=?
+    """,(diagnostico, solucao, pecas, id))
+
+    conn.commit()
+    conn.close()
+
+    return redirect("/ordens_servico")
+# ================================================
+#rota ordem
+#=================================================
+@app.route("/ordem/<int:id>")
+def ver_ordem(id):
+
+    conn = get_db()
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT os.*, c.nome, c.telefone, c.endereco, c.numero, c.bairro
+    FROM ordem_servico os
+    LEFT JOIN clientes c ON os.cliente_id = c.id
+    WHERE os.id = ?
+    """, (id,))
+
+    ordem = cursor.fetchone()
+
+    conn.close()
+
+    return render_template("ver_ordem.html", ordem=ordem)
 # ================================================
 #rota gerar_pedido
 #=================================================

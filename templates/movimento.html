@@ -162,20 +162,69 @@ Total: R$ <span id="totalGeral">0.00</span>
 
 <!-- MODAL AGENDAMENTO -->
 
-<div id="modalAgendamento" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#00000080;">
+<div id="modalAgendamento" style="
+display:none;
+position:fixed;
+top:0;
+left:0;
+width:100%;
+height:100%;
+background:rgba(0,0,0,0.4);
+">
 
-<div style="background:white; padding:20px; width:300px; margin:100px auto; border-radius:8px; text-align:center;">
+<div style="
+background:white;
+width:380px;
+margin:120px auto;
+padding:25px;
+border-radius:10px;
+box-shadow:0 4px 10px rgba(0,0,0,0.2);
+font-family:Arial;
+">
 
-<h3>Agendar Serviço</h3>
+<h3 style="margin-top:0;text-align:center;">📅 Agendar Serviço</h3>
 
-<input type="date" id="dataAgendamento"><br><br>
+<label>Cliente</label>
+<select id="clienteSelecionado" style="width:100%;padding:8px;margin-bottom:10px;"></select>
 
-<button onclick="confirmarAgendamento()">Confirmar</button>
+<label>Técnico</label>
+<select id="tecnicoSelecionado" style="width:100%;padding:8px;margin-bottom:10px;"></select>
 
-<button onclick="fecharModal()">Cancelar</button>
+<label>Data</label>
+<input type="date" id="dataAgendamento" style="width:100%;padding:8px;margin-bottom:10px;">
+
+<label>Hora</label>
+<input type="time" id="horaAgendamento" style="width:100%;padding:8px;margin-bottom:20px;">
+
+<div style="display:flex;gap:10px;">
+
+<button onclick="confirmarAgendamento()" style="
+flex:1;
+padding:10px;
+background:#27ae60;
+color:white;
+border:none;
+border-radius:6px;
+cursor:pointer;
+">
+Confirmar
+</button>
+
+<button onclick="fecharModal()" style="
+flex:1;
+padding:10px;
+background:#e74c3c;
+color:white;
+border:none;
+border-radius:6px;
+cursor:pointer;
+">
+Cancelar
+</button>
 
 </div>
 
+</div>
 </div>
 
 <script>
@@ -328,16 +377,25 @@ ul.appendChild(li)
 // =============================
 function confirmarAgendamento(){
 
-    let data = document.getElementById("dataAgendamento").value;
+    let cliente = document.getElementById("clienteSelecionado").value
+    let tecnico = document.getElementById("tecnicoSelecionado").value
+    let data = document.getElementById("dataAgendamento").value
+    let hora = document.getElementById("horaAgendamento").value
 
-    if(!data){
-        alert("Selecione uma data");
-        return;
+    if(!cliente){
+        alert("Selecione um cliente")
+        return
     }
 
-    // converter para formato brasileiro
-    let partes = data.split("-");
-    let dataBR = partes[2] + "/" + partes[1] + "/" + partes[0];
+    if(!data){
+        alert("Selecione uma data")
+        return
+    }
+
+    if(!hora){
+        alert("Selecione um horário")
+        return
+    }
 
     fetch("/criar_os",{
         method:"POST",
@@ -345,15 +403,25 @@ function confirmarAgendamento(){
             "Content-Type":"application/json"
         },
         body:JSON.stringify({
-            servico:servicoSelecionado,
-            data:dataBR
+            servico: servicoSelecionado,
+            cliente_id: cliente,
+            tecnico_id: tecnico,
+            data: data,
+            hora: hora
         })
     })
-    .then(res=>res.json())
-    .then(data=>{
-        alert("Ordem de Serviço criada!");
-        fecharModal();
-    });
+    .then(res => res.json())
+    .then(data => {
+
+        alert("Ordem de Serviço criada!")
+
+        if(data.whatsapp){
+            window.open(data.whatsapp)
+        }
+
+        fecharModal()
+
+    })
 
 }
 
@@ -405,8 +473,69 @@ atualizarCarrinho()
 })
 
 }
+// =============================
+// Carregar técnicos automaticamente
+// =============================
+function carregarTecnicos(){
+
+fetch("/listar_tecnicos")
+.then(res=>res.json())
+.then(data=>{
+
+let select = document.getElementById("tecnicoSelecionado")
+
+select.innerHTML = ""
+
+data.forEach(t=>{
+
+let option = document.createElement("option")
+
+option.value = t.id
+option.text = t.nome
+
+select.appendChild(option)
+
+})
+
+})
+
+}
+
+carregarTecnicos()
+
+// =============================
+// Carregar técnicos automaticamente
+// =============================
+function carregarClientes(){
+
+fetch("/listar_clientes")
+.then(res => res.json())
+.then(data => {
+
+let select = document.getElementById("clienteSelecionado")
+
+select.innerHTML = ""
+
+data.forEach(c => {
+
+let option = document.createElement("option")
+
+option.value = c.id
+option.text = c.nome
+
+select.appendChild(option)
+
+})
+
+})
+
+}
+
+carregarClientes()
 
 </script>
+
+
 
 </body>
 </html>

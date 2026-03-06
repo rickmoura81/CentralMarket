@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<title>Ordem de Serviço</title>
+
+<style>
+
+body{
+font-family: Arial;
+background:#e9ecef;
+padding:30px;
+}
+
+.os-container{
+width:800px;
+background:white;
+margin:auto;
+padding:30px;
+border:1px solid #ccc;
+}
+
+.header{
+display:flex;
+justify-content:space-between;
+border-bottom:2px solid #000;
+padding-bottom:10px;
+margin-bottom:20px;
+}
+
+.empresa{
+font-size:20px;
+font-weight:bold;
+}
+
+.os-numero{
+font-size:18px;
+font-weight:bold;
+}
+
+.section{
+margin-top:20px;
+}
+
+.section h3{
+background:#f1f1f1;
+padding:6px;
+border-left:4px solid #333;
+}
+
+.info-grid{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:10px;
+}
+
+.box{
+border:1px solid #ccc;
+padding:10px;
+min-height:50px;
+}
+
+.assinaturas{
+display:flex;
+justify-content:space-between;
+margin-top:40px;
+}
+
+.assinatura{
+text-align:center;
+width:45%;
+}
+
+.linha{
+border-top:1px solid black;
+margin-top:40px;
+}
+
+button{
+margin-top:20px;
+padding:8px 14px;
+border:none;
+background:#2c3e50;
+color:white;
+border-radius:5px;
+cursor:pointer;
+}
+
+@media print{
+
+button{
+display:none;
+}
+
+body{
+background:white;
+}
+
+.os-container{
+border:none;
+}
+
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="os-container">
+
+<div class="header">
+
+<div class="empresa">
+CentralMarket Assistência Técnica
+</div>
+
+<div class="os-numero">
+OS Nº {{ ordem.id }}
+</div>
+
+</div>
+
+<div class="section">
+
+<h3>Dados do Cliente</h3>
+
+<div class="info-grid">
+
+<div class="box">
+<b>Cliente:</b><br>
+{{ ordem.nome }}
+</div>
+
+<div class="box">
+<b>Telefone:</b><br>
+{{ ordem.telefone }}
+</div>
+
+<div class="box">
+<b>Endereço:</b><br>
+{{ ordem.endereco }} {{ ordem.numero }}
+</div>
+
+<div class="box">
+<b>Bairro:</b><br>
+{{ ordem.bairro }}
+</div>
+
+</div>
+
+</div>
+
+<div class="section">
+
+<h3>Serviço</h3>
+
+<div class="box">
+
+<b>Serviço:</b> {{ ordem.servico_nome }}<br>
+<b>Data:</b> {{ ordem.data_agendamento }}<br>
+<b>Hora:</b> {{ ordem.hora }}<br>
+<b>Status:</b> {{ ordem.status }}
+
+</div>
+
+</div>
+
+<div class="section">
+
+<h3>Defeito Reclamado</h3>
+
+<div class="box">
+{{ ordem.defeito_reclamado }}
+</div>
+
+</div>
+
+<div class="section">
+
+<h3>Diagnóstico Técnico</h3>
+
+<div class="box">
+{{ ordem.diagnostico }}
+</div>
+
+</div>
+
+<div class="section">
+
+<h3>Solução Aplicada</h3>
+
+<div class="box">
+{{ ordem.solucao }}
+</div>
+
+</div>
+
+<div class="section">
+
+<h3>Peças Trocadas</h3>
+
+<div class="box">
+{{ ordem.pecas_trocadas }}
+</div>
+
+</div>
+
+<div class="assinaturas">
+
+<div class="assinatura">
+
+<div class="linha"></div>
+
+Cliente
+
+</div>
+
+<div class="assinatura">
+
+<div class="linha"></div>
+
+Técnico
+
+</div>
+
+</div>
+
+<br>
+
+<button onclick="window.print()">
+🧾 Imprimir Ordem de Serviço
+</button>
+
+</div>
+
+</body>
+
+</html>

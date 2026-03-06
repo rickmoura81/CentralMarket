@@ -2,38 +2,90 @@
 <html>
 
 <head>
+
 <title>Ordens de Serviço</title>
 
 <style>
 
 body{
-font-family:Arial;
-background:#f4f6f9;
-padding:20px;
+    font-family: Arial;
+    background: #f4f6f9;
+    padding: 20px;
+}
+
+h2{
+    margin-bottom: 20px;
 }
 
 table{
-width:100%;
-border-collapse:collapse;
-background:white;
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
 }
 
-th,td{
-padding:10px;
-border-bottom:1px solid #ddd;
-text-align:center;
+th, td{
+    padding: 10px;
+    border-bottom: 1px solid #ddd;
+    text-align: center;
 }
 
 th{
-background:#2c3e50;
-color:white;
+    background: #2c3e50;
+    color: white;
 }
 
-.status{
-background:#3498db;
-color:white;
-padding:4px 8px;
-border-radius:4px;
+.status-agendado{
+    background: #3498db;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.status-andamento{
+    background: #f39c12;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.status-finalizado{
+    background: #27ae60;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+button{
+    padding: 6px 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.btn-iniciar{
+    background: #f39c12;
+    color: white;
+}
+
+.btn-finalizar{
+    background: #27ae60;
+    color: white;
+}
+
+.btn-mapa{
+    background: #2980b9;
+    color: white;
+}
+
+.btn-ver{
+    background: #8e44ad;
+    color: white;
+}
+
+.btn-voltar{
+    background: #7f8c8d;
+    color: white;
+    padding: 8px 12px;
 }
 
 </style>
@@ -49,8 +101,14 @@ border-radius:4px;
 <tr>
 <th>ID</th>
 <th>Serviço</th>
+<th>Cliente</th>
+<th>Telefone</th>
+<th>Endereço</th>
 <th>Data</th>
 <th>Status</th>
+<th>Ação</th>
+<th>Mapa</th>
+<th>Ver</th>
 </tr>
 
 {% for os in ordens %}
@@ -61,10 +119,73 @@ border-radius:4px;
 
 <td>{{ os.servico_nome }}</td>
 
-<td>{{ os.data_agendamento[8:10] }}/{{ os.data_agendamento[5:7] }}/{{ os.data_agendamento[0:4] }}</td>
+<td>{{ os.nome }}</td>
+
+<td>{{ os.telefone }}</td>
 
 <td>
-<span class="status">{{ os.status }}</span>
+{{ os.endereco }} {{ os.numero }} - {{ os.bairro }}
+</td>
+
+<td>
+{{ os.data_agendamento }} - {{ os.hora }}
+</td>
+
+<td>
+
+{% if os.status == "Agendado" %}
+
+<span class="status-agendado">Agendado</span>
+
+{% elif os.status == "Em Atendimento" %}
+
+<span class="status-andamento">Em Atendimento</span>
+
+{% else %}
+
+<span class="status-finalizado">Finalizado</span>
+
+{% endif %}
+
+</td>
+
+<td>
+
+{% if os.status == "Agendado" %}
+
+<a href="/atualizar_status/{{ os.id }}/Em Atendimento">
+<button class="btn-iniciar">▶ Iniciar</button>
+</a>
+
+{% elif os.status == "Em Atendimento" %}
+
+<a href="/atualizar_status/{{ os.id }}/Finalizado">
+<button class="btn-finalizar">✔ Finalizar</button>
+</a>
+
+{% else %}
+
+✔ Concluído
+
+{% endif %}
+
+</td>
+
+<td>
+
+<a target="_blank"
+href="https://www.google.com/maps/search/?api=1&query={{ os.endereco }} {{ os.numero }} {{ os.bairro }} {{ os.cidade }}">
+<button class="btn-mapa">📍 Mapa</button>
+</a>
+
+</td>
+
+<td>
+
+<a href="/ordem/{{ os.id }}">
+<button class="btn-ver">🔎 Ver</button>
+</a>
+
 </td>
 
 </tr>
@@ -72,6 +193,12 @@ border-radius:4px;
 {% endfor %}
 
 </table>
+
+<br>
+
+<a href="/pdv">
+<button class="btn-voltar">⬅ Voltar ao PDV</button>
+</a>
 
 </body>
 

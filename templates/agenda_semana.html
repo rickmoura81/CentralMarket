@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<title>Agenda da Semana</title>
+
+<style>
+
+body{
+font-family:Arial;
+background:#f4f6f9;
+padding:20px;
+}
+
+.container{
+display:grid;
+grid-template-columns:repeat(6,1fr);
+gap:10px;
+}
+
+.coluna{
+background:white;
+padding:10px;
+border-radius:6px;
+box-shadow:0 2px 4px rgba(0,0,0,0.1);
+}
+
+.dia{
+font-weight:bold;
+margin-bottom:10px;
+}
+
+.servico{
+background:#ecf0f1;
+padding:6px;
+margin-bottom:5px;
+border-radius:4px;
+font-size:14px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h2>📅 Agenda da Semana</h2>
+
+<div class="container">
+
+{% for dia, servicos in dias.items() %}
+
+<div class="coluna">
+
+<div class="dia">
+📆 {{ dia }}
+</div>
+
+{% for os in servicos %}
+
+<div class="servico">
+
+⏰ {{ os.hora }}  
+🔧 {{ os.servico_nome }}  
+👤 {{ os.cliente }}
+
+</div>
+
+{% endfor %}
+
+</div>
+
+{% endfor %}
+
+</div>
+
+</body>
+</html>

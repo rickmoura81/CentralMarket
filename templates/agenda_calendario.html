@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta charset="UTF-8">
+<title>Agenda de Serviços</title>
+
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/locales/pt-br.global.min.js"></script>
+
+<style>
+
+body{
+font-family:Arial;
+background:#f4f6f9;
+padding:20px;
+}
+
+#calendar{
+background:white;
+padding:10px;
+border-radius:8px;
+box-shadow:0 2px 5px rgba(0,0,0,0.1);
+}
+
+.filtro{
+margin-bottom:15px;
+}
+
+.fc-timegrid-event {
+min-height: 70px;
+}
+
+.fc-event{
+font-size:11px;
+white-space:normal;
+line-height:1.2;
+padding:4px;
+}
+
+.fc-event-title{
+white-space:normal;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h2>📅 Agenda de Serviços</h2>
+
+<div class="filtro">
+
+<select id="tecnicoFiltro">
+
+<option value="">Todos os técnicos</option>
+
+{% for t in tecnicos %}
+<option value="{{ t.id }}">{{ t.nome }}</option>
+{% endfor %}
+
+</select>
+
+</div>
+
+<div id="calendar"></div>
+
+<script>
+
+document.addEventListener('DOMContentLoaded', function() {
+
+let calendarEl = document.getElementById('calendar')
+
+let calendar = new FullCalendar.Calendar(calendarEl, {
+
+initialView:'timeGridWeek',
+
+locale:'pt-br',
+
+headerToolbar:{
+left:'prev,next today',
+center:'title',
+right:'dayGridMonth,timeGridWeek,timeGridDay'
+},
+
+buttonText:{
+today:'Hoje',
+month:'Mês',
+week:'Semana',
+day:'Dia'
+},
+
+events:function(fetchInfo, successCallback){
+
+let tecnico = document.getElementById("tecnicoFiltro").value
+
+fetch("/eventos_agenda?tecnico="+tecnico)
+.then(res => res.json())
+.then(data => successCallback(data))
+
+},
+
+editable:true,
+
+eventDrop:function(info){
+
+let dataHora = info.event.startStr
+
+fetch("/mover_evento",{
+
+method:"POST",
+
+headers:{
+"Content-Type":"application/json"
+},
+
+body:JSON.stringify({
+id:info.event.id,
+data:dataHora
+})
+
+})
+
+},
+
+eventContent:function(info){
+
+let cliente = info.event.extendedProps.cliente || ""
+let tecnico = info.event.extendedProps.tecnico || ""
+
+let hora = info.timeText
+
+let html = `
+<div>
+
+<div><b>${hora}</b></div>
+<div>${info.event.title}</div>
+<div>👤 ${cliente}</div>
+<div>👨‍🔧 ${tecnico}</div>
+
+</div>
+`
+
+return { html: html }
+
+},
+
+eventClick:function(info){
+
+window.location.href="/ordem_servico/"+info.event.id
+
+}
+
+})
+
+calendar.render()
+
+document.getElementById("tecnicoFiltro").addEventListener("change", function(){
+
+calendar.refetchEvents()
+
+})
+
+})
+
+</script>
+
+</body>
+</html>
