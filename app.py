@@ -1093,20 +1093,67 @@ def produtos():
     conn = conectar()
     cursor = conn.cursor()
 
+    erro_map = {
+        "campos_obrigatorios": "Preencha SKU, nome, categoria, fornecedor, preco de custo e preco de venda.",
+        "preco_invalido": "Informe valores validos para preco de custo e preco de venda.",
+        "estoque_minimo_invalido": "Estoque minimo deve ser um numero inteiro maior ou igual a zero.",
+        "tipo_invalido": "Tipo de item invalido.",
+        "sku_duplicado": "Ja existe um produto com este SKU.",
+        "codigo_barras_duplicado": "Ja existe um produto com este codigo de barras.",
+        "erro_interno": "Nao foi possivel salvar o produto agora."
+    }
+
     # ---------------- CADASTRO ----------------
     if request.method == "POST":
-        sku = request.form["sku"]
-        nome = request.form["nome"]
-        codigo_fabricante = request.form["codigo_fabricante"]
-        codigo_barras = request.form["codigo_barras"]
-        categoria_id = request.form["categoria_id"]
-        fornecedor_id = request.form["fornecedor_id"]
-        preco_custo = request.form["preco_custo"]
-        preco_venda = request.form["preco_venda"]
-        unidade = request.form["unidade"]
-        estoque_minimo = request.form["estoque_minimo"]
-        ncm = request.form["ncm"]
-        tipo = request.form["tipo"]   # 🔥 NOVO CAMPO
+        sku = (request.form.get("sku") or "").strip()
+        nome = (request.form.get("nome") or "").strip()
+        codigo_fabricante = (request.form.get("codigo_fabricante") or "").strip()
+        codigo_barras = (request.form.get("codigo_barras") or "").strip()
+        categoria_id = (request.form.get("categoria_id") or "").strip()
+        fornecedor_id = (request.form.get("fornecedor_id") or "").strip()
+        unidade = (request.form.get("unidade") or "").strip()
+        ncm = (request.form.get("ncm") or "").strip()
+        tipo = (request.form.get("tipo") or "").strip().lower()
+
+        if not sku or not nome or not categoria_id or not fornecedor_id:
+            conn.close()
+            return redirect("/produtos?erro=campos_obrigatorios")
+
+        try:
+            preco_custo = float(request.form.get("preco_custo") or 0)
+            preco_venda = float(request.form.get("preco_venda") or 0)
+        except (TypeError, ValueError):
+            conn.close()
+            return redirect("/produtos?erro=preco_invalido")
+
+        if preco_custo < 0 or preco_venda < 0:
+            conn.close()
+            return redirect("/produtos?erro=preco_invalido")
+
+        try:
+            estoque_minimo = int(request.form.get("estoque_minimo") or 0)
+        except (TypeError, ValueError):
+            conn.close()
+            return redirect("/produtos?erro=estoque_minimo_invalido")
+
+        if estoque_minimo < 0:
+            conn.close()
+            return redirect("/produtos?erro=estoque_minimo_invalido")
+
+        if tipo not in ("produto", "servico"):
+            conn.close()
+            return redirect("/produtos?erro=tipo_invalido")
+
+        cursor.execute("SELECT id FROM produtos WHERE sku = ? LIMIT 1", (sku,))
+        if cursor.fetchone():
+            conn.close()
+            return redirect("/produtos?erro=sku_duplicado")
+
+        if codigo_barras:
+            cursor.execute("SELECT id FROM produtos WHERE codigo_barras = ? LIMIT 1", (codigo_barras,))
+            if cursor.fetchone():
+                conn.close()
+                return redirect("/produtos?erro=codigo_barras_duplicado")
 
         # 🔥 Se for serviço, não controla estoque
         if tipo == "servico":
@@ -1115,30 +1162,47 @@ def produtos():
         else:
             estoque = 0  # começa zerado até entrada manual depois
 
-        cursor.execute("""
-            INSERT INTO produtos
-            (sku, nome, codigo_barras, codigo_fabricante,
-             categoria_id, preco_custo, preco_venda,
-             unidade, estoque, estoque_minimo, ncm, fornecedor_id, tipo)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            sku, nome, codigo_barras, codigo_fabricante,
-            categoria_id, preco_custo, preco_venda,
-            unidade, estoque, estoque_minimo, ncm, fornecedor_id, tipo
-        ))
+        try:
+            cursor.execute("""
+                INSERT INTO produtos
+                (sku, nome, codigo_barras, codigo_fabricante,
+                 categoria_id, preco_custo, preco_venda,
+                 unidade, estoque, estoque_minimo, ncm, fornecedor_id, tipo)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                sku, nome, codigo_barras, codigo_fabricante,
+                categoria_id, preco_custo, preco_venda,
+                unidade, estoque, estoque_minimo, ncm, fornecedor_id, tipo
+            ))
+            conn.commit()
+        except sqlite3.IntegrityError:
+            conn.close()
+            return redirect("/produtos?erro=sku_duplicado")
+        except Exception:
+            conn.close()
+            return redirect("/produtos?erro=erro_interno")
 
-        conn.commit()
+        conn.close()
+        return redirect("/produtos?ok=1")
 
     # ---------------- BUSCA INTELIGENTE ----------------
     busca = request.args.get("busca", "").strip()
+    erro = erro_map.get(request.args.get("erro", "").strip(), "")
+    ok = request.args.get("ok", "").strip() == "1"
 
     if busca:
         cursor.execute("""
-            SELECT * FROM produtos
+            SELECT p.*,
+                   c.nome AS categoria_nome,
+                   f.razao_social AS fornecedor_nome
+            FROM produtos p
+            LEFT JOIN categorias c ON c.id = p.categoria_id
+            LEFT JOIN fornecedores f ON f.id = p.fornecedor_id
             WHERE nome LIKE ?
             OR sku LIKE ?
             OR codigo_barras LIKE ?
             OR codigo_fabricante LIKE ?
+            ORDER BY p.id DESC
         """, (
             f"%{busca}%",
             f"%{busca}%",
@@ -1146,7 +1210,15 @@ def produtos():
             f"%{busca}%"
         ))
     else:
-        cursor.execute("SELECT * FROM produtos")
+        cursor.execute("""
+            SELECT p.*,
+                   c.nome AS categoria_nome,
+                   f.razao_social AS fornecedor_nome
+            FROM produtos p
+            LEFT JOIN categorias c ON c.id = p.categoria_id
+            LEFT JOIN fornecedores f ON f.id = p.fornecedor_id
+            ORDER BY p.id DESC
+        """)
 
     produtos = cursor.fetchall()
 
@@ -1163,7 +1235,10 @@ def produtos():
         "produtos.html",
         categorias=categorias,
         fornecedores=fornecedores,
-        produtos=produtos
+        produtos=produtos,
+        busca=busca,
+        erro=erro,
+        ok=ok
     )
 #=================================================
 #editar produtos^^^^^^^^^^^
@@ -1366,7 +1441,7 @@ def add_item(movimento_id):
 #=================================================
 #Criar rota remover_item
 #=================================================
-@app.route("/remover_item/<int:item_id>")
+@app.route("/remover_item/<int:item_id>", methods=["POST"])
 def remover_item(item_id):
     conn = get_db()
     cursor = conn.cursor()
@@ -1381,6 +1456,7 @@ def remover_item(item_id):
     item = cursor.fetchone()
 
     if not item:
+        conn.close()
         return "Item não encontrado"
 
     movimento_id = item[0]
@@ -1409,6 +1485,7 @@ def remover_item(item_id):
     """, (item_id,))
 
     conn.commit()
+    conn.close()
 
     return redirect(f"/movimento/{movimento_id}")
 # Rota do PDV
@@ -1523,7 +1600,7 @@ def buscar_produto():
     like = f"%{termo}%"
 
     cursor.execute("""
-        SELECT id, nome, preco_venda AS preco, estoque, tipo
+        SELECT id, nome, preco_venda AS preco, estoque, tipo, sku, codigo_barras, codigo_fabricante
         FROM produtos
         WHERE
             nome LIKE ?
@@ -1534,7 +1611,7 @@ def buscar_produto():
         
         UNION ALL
         
-        SELECT id, nome, preco AS preco, 999 AS estoque, 'servico' AS tipo
+        SELECT id, nome, preco AS preco, 999 AS estoque, 'servico' AS tipo, '' AS sku, '' AS codigo_barras, '' AS codigo_fabricante
         FROM servicos
         WHERE nome LIKE ?
         
@@ -1554,7 +1631,10 @@ def buscar_produto():
             "nome": r[1],
             "preco": r[2],
             "estoque": r[3],
-            "tipo": r[4]
+            "tipo": r[4],
+            "sku": r[5] or "",
+            "codigo_barras": r[6] or "",
+            "codigo_fabricante": r[7] or ""
         })
 
     return jsonify(lista)
@@ -2112,7 +2192,7 @@ def gerar_pedido():
 
     data = request.get_json(silent=True) or {}
     itens = data.get("itens") or []
-    if not itens:
+    if not isinstance(itens, list) or not itens:
         return jsonify({"ok": False, "erro": "Pedido sem itens."}), 400
 
     funcionario_id = data.get("funcionario_id")
@@ -2152,10 +2232,81 @@ def gerar_pedido():
     from datetime import datetime
     data_abertura = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+    itens_normalizados = []
     total_bruto = 0.0
 
     for item in itens:
-        subtotal = float(item["preco"]) * float(item["quantidade"])
+        if not isinstance(item, dict):
+            conn.close()
+            return jsonify({"ok": False, "erro": "Formato de item invalido."}), 400
+
+        try:
+            item_id = int(item.get("id"))
+        except (TypeError, ValueError):
+            conn.close()
+            return jsonify({"ok": False, "erro": "Item com ID invalido."}), 400
+
+        try:
+            quantidade = int(item.get("quantidade"))
+        except (TypeError, ValueError):
+            conn.close()
+            return jsonify({"ok": False, "erro": "Quantidade invalida."}), 400
+
+        if quantidade < 1:
+            conn.close()
+            return jsonify({"ok": False, "erro": "Quantidade deve ser maior que zero."}), 400
+
+        tipo_item = (item.get("tipo") or "produto").strip().lower()
+
+        if tipo_item == "servico":
+            cursor.execute("""
+                SELECT id, nome, preco
+                FROM servicos
+                WHERE id=?
+                LIMIT 1
+            """, (item_id,))
+            cadastro = cursor.fetchone()
+            if not cadastro:
+                conn.close()
+                return jsonify({"ok": False, "erro": f"Servico {item_id} nao encontrado."}), 404
+
+            preco_unitario = float(cadastro["preco"] or 0)
+            subtotal = preco_unitario * quantidade
+            itens_normalizados.append({
+                "id": item_id,
+                "tipo": "servico",
+                "quantidade": quantidade,
+                "preco_unitario": preco_unitario,
+                "subtotal": subtotal
+            })
+            total_bruto += subtotal
+            continue
+
+        cursor.execute("""
+            SELECT id, nome, preco_venda, estoque
+            FROM produtos
+            WHERE id=?
+            LIMIT 1
+        """, (item_id,))
+        cadastro = cursor.fetchone()
+        if not cadastro:
+            conn.close()
+            return jsonify({"ok": False, "erro": f"Produto {item_id} nao encontrado."}), 404
+
+        estoque_atual = float(cadastro["estoque"] or 0)
+        if estoque_atual < quantidade:
+            conn.close()
+            return jsonify({"ok": False, "erro": f"Estoque insuficiente para {cadastro['nome']}."}), 400
+
+        preco_unitario = float(cadastro["preco_venda"] or 0)
+        subtotal = preco_unitario * quantidade
+        itens_normalizados.append({
+            "id": item_id,
+            "tipo": "produto",
+            "quantidade": quantidade,
+            "preco_unitario": preco_unitario,
+            "subtotal": subtotal
+        })
         total_bruto += subtotal
 
     try:
@@ -2241,8 +2392,7 @@ def gerar_pedido():
 
     movimento_id = cursor.lastrowid
 
-    for item in itens:
-        subtotal = float(item["preco"]) * float(item["quantidade"])
+    for item in itens_normalizados:
         cursor.execute("""
             INSERT INTO itens_movimento
             (movimento_id, produto_id, quantidade, preco_unitario, subtotal)
@@ -2251,15 +2401,22 @@ def gerar_pedido():
             movimento_id,
             item["id"],
             item["quantidade"],
-            item["preco"],
-            subtotal
+            item["preco_unitario"],
+            item["subtotal"]
         ))
 
-        cursor.execute("""
-            UPDATE produtos
-            SET estoque = estoque - ?
-            WHERE id = ?
-        """, (item["quantidade"], item["id"]))
+        if item["tipo"] == "produto":
+            cursor.execute("""
+                UPDATE produtos
+                SET estoque = estoque - ?
+                WHERE id = ?
+                  AND estoque >= ?
+            """, (item["quantidade"], item["id"], item["quantidade"]))
+
+            if cursor.rowcount != 1:
+                conn.rollback()
+                conn.close()
+                return jsonify({"ok": False, "erro": "Estoque alterado durante a venda. Revise o carrinho e tente novamente."}), 409
 
     conn.commit()
     conn.close()
@@ -3252,7 +3409,9 @@ def mudar_status(id, status):
 
     conn.commit()
     conn.close()
-
+    tecnico = (request.args.get("tecnico") or "").strip()
+    if tecnico:
+        return redirect(url_for("agenda_dia", tecnico=tecnico))
     return redirect("/agenda_dia")
 # ================================================
 #rota para listar técnicos
@@ -3320,6 +3479,7 @@ def eventos_agenda():
         os.servico_nome,
         os.data_agendamento,
         os.hora,
+        os.status,
         c.nome AS cliente,
         f.nome AS tecnico
     FROM ordem_servico os
@@ -3350,6 +3510,7 @@ def eventos_agenda():
             "id": os["id"],
             "title": os["servico_nome"],
             "start": data,
+            "status": os["status"] or "Agendado",
             "cliente": os["cliente"],
             "tecnico": os["tecnico"]
         })
@@ -3526,4 +3687,24 @@ def adicionar_item_os(os_id):
 #=================================================
 if __name__ == "__main__":
     criar_tabelas()
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    host = os.environ.get("FLASK_HOST", "0.0.0.0")
+    port = int(os.environ.get("FLASK_PORT", "5000"))
+    debug = (os.environ.get("FLASK_DEBUG", "1").strip().lower() in ("1", "true", "yes", "on"))
+
+    cert_file = (os.environ.get("SSL_CERT_FILE") or "").strip()
+    key_file = (os.environ.get("SSL_KEY_FILE") or "").strip()
+    use_adhoc_ssl = (os.environ.get("SSL_ADHOC", "0").strip().lower() in ("1", "true", "yes", "on"))
+
+    ssl_context = None
+    if cert_file or key_file:
+        if not cert_file or not key_file:
+            raise RuntimeError("Para HTTPS, defina SSL_CERT_FILE e SSL_KEY_FILE juntos.")
+        if not os.path.exists(cert_file):
+            raise RuntimeError(f"Certificado SSL nao encontrado: {cert_file}")
+        if not os.path.exists(key_file):
+            raise RuntimeError(f"Chave SSL nao encontrada: {key_file}")
+        ssl_context = (cert_file, key_file)
+    elif use_adhoc_ssl:
+        ssl_context = "adhoc"
+
+    app.run(host=host, port=port, debug=debug, ssl_context=ssl_context)

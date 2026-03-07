@@ -267,6 +267,36 @@
       font-size: 12px;
       margin-top: 6px;
     }
+
+    .server-config {
+      margin-top: 10px;
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 10px;
+      display: none;
+    }
+
+    .server-config input {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 8px;
+      font-size: 14px;
+    }
+
+    .server-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+
+    .server-msg {
+      margin-top: 6px;
+      font-size: 12px;
+      color: #334155;
+    }
   </style>
 </head>
 <body>
@@ -277,8 +307,18 @@
       <div class="actions">
         <button class="btn-light" id="btnRefresh" type="button">Atualizar</button>
         <button class="btn-alert" id="btnAlert" type="button">Ativar Alertas</button>
+        <button class="btn-light" id="btnServerConfig" type="button">Servidor</button>
         <button class="btn-install" id="btnInstall" type="button">Instalar App</button>
-        <a class="link btn-light" href="/logout">Sair</a>
+        <a class="link btn-light" id="logoutLink" href="/logout">Sair</a>
+      </div>
+      <div class="server-config" id="serverConfigBox">
+        <label for="serverBaseInput" style="font-size:12px;font-weight:700;">URL base do servidor</label>
+        <input id="serverBaseInput" type="text" placeholder="https://seu-servidor.com">
+        <div class="server-actions">
+          <button class="btn-light" id="btnServerSave" type="button">Salvar</button>
+          <button class="btn-light" id="btnServerReset" type="button">Usar atual</button>
+        </div>
+        <div class="server-msg" id="serverConfigMsg"></div>
       </div>
     </div>
 
@@ -291,6 +331,78 @@
     const produtoSelecionadoPorOs = {};
     let idsAgendaAnterior = [];
     let primeiraCargaAgenda = true;
+    const SERVER_BASE_KEY = "cm_tecnico_server_base";
+
+    function normalizarBaseServidor(valor) {
+      const raw = String(valor || "").trim();
+      if (!raw) return "";
+      const semBarra = raw.replace(/\/+$/, "");
+      if (!/^https?:\/\//i.test(semBarra)) {
+        return `https://${semBarra}`;
+      }
+      return semBarra;
+    }
+
+    function baseServidor() {
+      const salvo = normalizarBaseServidor(localStorage.getItem(SERVER_BASE_KEY));
+      return salvo || window.location.origin;
+    }
+
+    function caminhoServidor(path) {
+      const p = String(path || "");
+      if (/^https?:\/\//i.test(p)) return p;
+      return `${baseServidor()}${p.startsWith("/") ? p : `/${p}`}`;
+    }
+
+    function salvarBaseServidor(valor) {
+      const normalizado = normalizarBaseServidor(valor);
+      if (!normalizado) {
+        localStorage.removeItem(SERVER_BASE_KEY);
+        return "";
+      }
+      localStorage.setItem(SERVER_BASE_KEY, normalizado);
+      return normalizado;
+    }
+
+    function configurarServidorUI() {
+      const box = document.getElementById("serverConfigBox");
+      const btn = document.getElementById("btnServerConfig");
+      const input = document.getElementById("serverBaseInput");
+      const msg = document.getElementById("serverConfigMsg");
+      const logoutLink = document.getElementById("logoutLink");
+
+      if (input) input.value = baseServidor();
+      if (logoutLink) logoutLink.href = caminhoServidor("/logout");
+      if (msg) msg.textContent = `Servidor ativo: ${baseServidor()}`;
+
+      if (btn && box) {
+        btn.addEventListener("click", () => {
+          box.style.display = box.style.display === "block" ? "none" : "block";
+        });
+      }
+
+      const btnSave = document.getElementById("btnServerSave");
+      if (btnSave && input && msg) {
+        btnSave.addEventListener("click", async () => {
+          const novo = salvarBaseServidor(input.value);
+          input.value = novo || window.location.origin;
+          msg.textContent = `Servidor ativo: ${baseServidor()}`;
+          if (logoutLink) logoutLink.href = caminhoServidor("/logout");
+          await carregarAgenda();
+        });
+      }
+
+      const btnReset = document.getElementById("btnServerReset");
+      if (btnReset && input && msg) {
+        btnReset.addEventListener("click", async () => {
+          localStorage.removeItem(SERVER_BASE_KEY);
+          input.value = window.location.origin;
+          msg.textContent = `Servidor ativo: ${baseServidor()}`;
+          if (logoutLink) logoutLink.href = caminhoServidor("/logout");
+          await carregarAgenda();
+        });
+      }
+    }
 
     function esc(str) {
       if (!str) return "";
@@ -348,7 +460,7 @@
     }
 
     async function atualizarStatus(osId, status) {
-      const r = await fetch(`/api/tecnico/ordem/${osId}/status`, {
+      const r = await fetch(caminhoServidor(`/api/tecnico/ordem/${osId}/status`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status })
@@ -362,7 +474,7 @@
     }
 
     async function iniciarAtendimento(osId) {
-      const r = await fetch(`/api/tecnico/ordem/${osId}/status`, {
+      const r = await fetch(caminhoServidor(`/api/tecnico/ordem/${osId}/status`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "Em Atendimento" })
@@ -372,7 +484,7 @@
         alert(j.erro || "Erro ao iniciar atendimento");
         return;
       }
-      window.location.href = `/app_tecnico/atendimento/${osId}`;
+      window.location.href = caminhoServidor(`/app_tecnico/atendimento/${osId}`);
     }
 
     async function salvarEvidencias(osId) {
@@ -380,7 +492,7 @@
       fd.append("assinatura_nome", document.getElementById(`assinatura_${osId}`).value || "");
       fd.append("assinatura_imagem", document.getElementById(`assinatura_img_${osId}`).value || "");
 
-      const r = await fetch(`/api/tecnico/ordem/${osId}/evidencias`, { method: "POST", body: fd });
+      const r = await fetch(caminhoServidor(`/api/tecnico/ordem/${osId}/evidencias`), { method: "POST", body: fd });
       const j = await r.json();
       if (!r.ok || !j.ok) {
         alert(j.erro || "Erro ao salvar evidencias");
@@ -400,7 +512,7 @@
         return;
       }
 
-      const r = await fetch(`/buscar_produto?q=${encodeURIComponent(termo)}`);
+      const r = await fetch(caminhoServidor(`/buscar_produto?q=${encodeURIComponent(termo)}`));
       const produtos = await r.json();
       const lista = (produtos || []).filter(p => String(p.tipo || "produto").toLowerCase() !== "servico");
       if (!lista.length) {
@@ -441,7 +553,7 @@
         return;
       }
 
-      const r = await fetch(`/api/tecnico/ordem/${osId}/adicionar_item`, {
+      const r = await fetch(caminhoServidor(`/api/tecnico/ordem/${osId}/adicionar_item`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ produto_id: p.id, quantidade: qtd })
@@ -515,47 +627,13 @@
 
     function cardHtml(item) {
       const endereco = makeEndereco(item);
-      const maps = endereco
-        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(endereco)}`
-        : "";
-      let botoes = `<button class="btn-save" type="button" onclick="salvarEvidencias(${item.id})">Salvar Evidencias</button>`;
+      let botoes = "";
       if (item.status === "Agendado") {
-        botoes += `<button class="btn-start" type="button" onclick="iniciarAtendimento(${item.id})">Iniciar</button>`;
+        botoes += `<button class="btn-start" type="button" onclick="iniciarAtendimento(${item.id})">Iniciar Atendimento</button>`;
       } else if (item.status === "Em Atendimento") {
-        botoes += `<a class="link btn-start" href="/app_tecnico/atendimento/${item.id}">Abrir Atendimento</a>`;
-      }
-      if (maps) {
-        botoes += `<a class="link btn-map" target="_blank" rel="noopener" href="${maps}">Mapa</a>`;
-      }
-
-      const podeAdicionarPeca = item.status === "Agendado" || item.status === "Em Atendimento";
-      const itens = item.itens || [];
-      let itensHtml = `<div class="muted-small">Nenhuma peça adicionada.</div>`;
-      if (itens.length) {
-        const totalItens = itens.reduce((s, it) => s + Number(it.subtotal || 0), 0);
-        itensHtml = `
-          <div class="itens-list">
-            <table>
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th>Qtd</th>
-                  <th>Subtotal</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${itens.map(it => `
-                  <tr>
-                    <td>${esc(it.descricao || "")}</td>
-                    <td>${esc(it.quantidade || 0)}</td>
-                    <td>R$ ${moeda(it.subtotal)}</td>
-                  </tr>
-                `).join("")}
-              </tbody>
-            </table>
-            <div class="muted-small"><strong>Total peças:</strong> R$ ${moeda(totalItens)}</div>
-          </div>
-        `;
+        botoes += `<a class="link btn-start" href="${caminhoServidor(`/app_tecnico/atendimento/${item.id}`)}">Abrir Atendimento</a>`;
+      } else if (item.status === "Finalizado") {
+        botoes += `<a class="link btn-light" href="${caminhoServidor(`/app_tecnico/atendimento/${item.id}`)}">Ver Atendimento</a>`;
       }
 
       return `
@@ -572,36 +650,6 @@
           <div class="line"><strong>Obs:</strong> ${esc(item.observacao || "-")}</div>
           <div class="line"><strong>Pedido Caixa:</strong> ${item.movimento_id ? `#${item.movimento_id}` : "-"}</div>
 
-          <div class="section">
-            <h3>Evidencias do Atendimento</h3>
-            <input class="sign" id="assinatura_${item.id}" type="text" value="${esc(item.assinatura_nome || "")}" placeholder="Assinatura (nome do cliente)">
-            <input id="assinatura_img_${item.id}" type="hidden" value="">
-            <div class="sig-wrap">
-              <canvas id="pad_${item.id}" class="sig-pad" width="600" height="220"></canvas>
-              <div class="sig-actions">
-                <button id="clear_${item.id}" class="btn-clear" type="button">Limpar Assinatura</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="section">
-            <h3>Peças Utilizadas</h3>
-            ${podeAdicionarPeca ? `
-              <input class="peca-search" id="peca_busca_${item.id}" type="text" placeholder="Buscar peça por nome/código" oninput="buscarPeca(${item.id})" autocomplete="off">
-              <div class="result-box" id="peca_result_${item.id}"></div>
-              <div class="peca-row">
-                <div>
-                  <label class="muted-small">Quantidade</label>
-                  <input class="qtd-input" id="peca_qtd_${item.id}" type="number" min="1" value="1">
-                </div>
-              </div>
-              <button class="btn-add-item" type="button" onclick="adicionarPeca(${item.id})">Adicionar Peça</button>
-            ` : `
-              <div class="muted-small">Adição de peças bloqueada para OS já finalizada/conferência.</div>
-            `}
-            ${itensHtml}
-          </div>
-
           <div class="os-actions">${botoes}</div>
         </article>
       `;
@@ -617,7 +665,7 @@
       }
 
       try {
-        const r = await fetch("/api/tecnico/agenda_hoje", { cache: "no-store" });
+        const r = await fetch(caminhoServidor("/api/tecnico/agenda_hoje"), { cache: "no-store" });
         const j = await r.json();
 
         if (!r.ok || !j.ok) {
@@ -646,7 +694,6 @@
 
         if (!somenteVerificar) {
           lista.innerHTML = j.ordens.map(cardHtml).join("");
-          j.ordens.forEach((o) => initSignaturePad(o.id));
         }
         idsAgendaAnterior = idsAtual;
         primeiraCargaAgenda = false;
@@ -694,6 +741,7 @@
       navigator.serviceWorker.register("/app_tecnico/sw.js").catch(() => {});
     }
 
+    configurarServidorUI();
     setInterval(() => carregarAgenda({ somenteVerificar: true }), 12000);
     carregarAgenda();
   </script>

@@ -29,24 +29,154 @@
     .itens-list table{width:100%;border-collapse:collapse}
     .itens-list th,.itens-list td{padding:5px;border-bottom:1px solid #e2e8f0;text-align:left;font-size:12px}
     .itens-list tr:last-child td{border-bottom:0}
+    .scan-help{font-size:12px;color:#475569;margin-top:6px}
+    .btn-scan{background:#0ea5e9;color:#fff;margin-top:8px}
+    .scan-modal{
+      position:fixed; inset:0; background:rgba(15,23,42,.82); z-index:9999;
+      display:none; align-items:center; justify-content:center; padding:14px;
+    }
+    .scan-card{
+      width:min(520px,100%); background:#fff; border-radius:12px; padding:12px;
+    }
+    .scan-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+    .scan-title{margin:0;font-size:16px}
+    .scan-video{width:100%;margin-top:10px;border-radius:10px;background:#111}
+    .scan-status{font-size:12px;color:#334155;margin-top:8px}
+    .btn-close-scan{background:#64748b;color:#fff}
+
+    .server-config {
+      width: 100%;
+      margin-top: 8px;
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 10px;
+      display: none;
+    }
+    .server-config input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+    }
+    .server-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+    .server-msg {
+      margin-top: 6px;
+      font-size: 12px;
+      color: #334155;
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="top">
-      <a class="link btn-back" href="/app_tecnico">Voltar Agenda</a>
+      <a class="link btn-back" id="voltarAgendaLink" href="/app_tecnico">Voltar Agenda</a>
       <button class="btn btn-save" onclick="salvarEvidencias()">Salvar Assinatura</button>
       <button class="btn btn-end" onclick="finalizarAtendimento()">Finalizar Atendimento</button>
       <a id="btnMapa" class="link btn-map" href="#" target="_blank" rel="noopener">Mapa</a>
+      <button class="btn btn-back" id="btnServerConfig" type="button">Servidor</button>
+      <div class="server-config" id="serverConfigBox">
+        <label for="serverBaseInput" style="font-size:12px;font-weight:700;">URL base do servidor</label>
+        <input id="serverBaseInput" type="text" placeholder="https://seu-servidor.com">
+        <div class="server-actions">
+          <button class="btn btn-save" id="btnServerSave" type="button">Salvar</button>
+          <button class="btn btn-back" id="btnServerReset" type="button">Usar atual</button>
+        </div>
+        <div class="server-msg" id="serverConfigMsg"></div>
+      </div>
     </div>
 
     <div id="box"></div>
+  </div>
+  <div id="scanModal" class="scan-modal">
+    <div class="scan-card">
+      <div class="scan-head">
+        <h3 class="scan-title">Leitor por Camera</h3>
+        <button type="button" class="btn btn-close-scan" onclick="fecharScannerCamera()">Fechar</button>
+      </div>
+      <video id="scanVideo" class="scan-video" playsinline autoplay muted></video>
+      <div id="scanStatus" class="scan-status">Abrindo camera...</div>
+    </div>
   </div>
 
   <script>
     const osId = {{ os_id }};
     let ordemAtual = null;
     let produtoSelecionado = null;
+    let scanStream = null;
+    let scanTimer = null;
+    let barcodeDetector = null;
+    const SERVER_BASE_KEY = "cm_tecnico_server_base";
+
+    function normalizarBaseServidor(valor){
+      const raw = String(valor || "").trim();
+      if(!raw) return "";
+      const semBarra = raw.replace(/\/+$/, "");
+      if(!/^https?:\/\//i.test(semBarra)) return `https://${semBarra}`;
+      return semBarra;
+    }
+    function baseServidor(){
+      const salvo = normalizarBaseServidor(localStorage.getItem(SERVER_BASE_KEY));
+      return salvo || window.location.origin;
+    }
+    function caminhoServidor(path){
+      const p = String(path || "");
+      if(/^https?:\/\//i.test(p)) return p;
+      return `${baseServidor()}${p.startsWith("/") ? p : `/${p}`}`;
+    }
+    function salvarBaseServidor(valor){
+      const normalizado = normalizarBaseServidor(valor);
+      if(!normalizado){
+        localStorage.removeItem(SERVER_BASE_KEY);
+        return "";
+      }
+      localStorage.setItem(SERVER_BASE_KEY, normalizado);
+      return normalizado;
+    }
+    function configurarServidorUI(){
+      const box = document.getElementById("serverConfigBox");
+      const btn = document.getElementById("btnServerConfig");
+      const input = document.getElementById("serverBaseInput");
+      const msg = document.getElementById("serverConfigMsg");
+      const voltar = document.getElementById("voltarAgendaLink");
+
+      if(input) input.value = baseServidor();
+      if(msg) msg.textContent = `Servidor ativo: ${baseServidor()}`;
+      if(voltar) voltar.href = caminhoServidor("/app_tecnico");
+
+      if(btn && box){
+        btn.addEventListener("click", () => {
+          box.style.display = box.style.display === "block" ? "none" : "block";
+        });
+      }
+
+      const btnSave = document.getElementById("btnServerSave");
+      if(btnSave && input && msg){
+        btnSave.addEventListener("click", async () => {
+          const novo = salvarBaseServidor(input.value);
+          input.value = novo || window.location.origin;
+          msg.textContent = `Servidor ativo: ${baseServidor()}`;
+          if(voltar) voltar.href = caminhoServidor("/app_tecnico");
+          await carregar();
+        });
+      }
+
+      const btnReset = document.getElementById("btnServerReset");
+      if(btnReset && input && msg){
+        btnReset.addEventListener("click", async () => {
+          localStorage.removeItem(SERVER_BASE_KEY);
+          input.value = window.location.origin;
+          msg.textContent = `Servidor ativo: ${baseServidor()}`;
+          if(voltar) voltar.href = caminhoServidor("/app_tecnico");
+          await carregar();
+        });
+      }
+    }
 
     function esc(str){
       if(!str) return "";
@@ -54,6 +184,98 @@
     }
     function moeda(v){ return Number(v||0).toFixed(2); }
     function endereco(o){ return [o.endereco,o.numero,o.bairro,o.cidade].filter(Boolean).join(" ").trim(); }
+    function normalizarCodigo(v){ return String(v || "").trim().toUpperCase(); }
+    function codigoExato(p, termo){
+      const t = normalizarCodigo(termo);
+      if(!t) return false;
+      return [p.codigo_barras, p.codigo_fabricante, p.sku]
+        .map(normalizarCodigo)
+        .some(c => c && c === t);
+    }
+    function selecionarProduto(p){
+      produtoSelecionado = p;
+      const input = document.getElementById("peca_busca");
+      const box = document.getElementById("peca_result");
+      if(input) input.value = `${p.nome} (R$ ${moeda(p.preco)})`;
+      if(box){
+        box.style.display = "none";
+        box.innerHTML = "";
+      }
+    }
+    function scannerCameraSuportado(){
+      return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && "BarcodeDetector" in window);
+    }
+    function pararScannerCamera(){
+      if(scanTimer){
+        clearInterval(scanTimer);
+        scanTimer = null;
+      }
+      if(scanStream){
+        scanStream.getTracks().forEach(t => t.stop());
+        scanStream = null;
+      }
+      const video = document.getElementById("scanVideo");
+      if(video){
+        video.pause();
+        video.srcObject = null;
+      }
+    }
+    function fecharScannerCamera(){
+      pararScannerCamera();
+      const modal = document.getElementById("scanModal");
+      if(modal) modal.style.display = "none";
+    }
+    async function abrirScannerCamera(){
+      const statusEl = document.getElementById("scanStatus");
+      if(!scannerCameraSuportado()){
+        alert("Seu navegador nao suporta leitura por camera neste app. Use leitor Bluetooth/USB.");
+        return;
+      }
+      try{
+        if(!barcodeDetector){
+          barcodeDetector = new BarcodeDetector({
+            formats: ["ean_13","ean_8","code_128","upc_a","upc_e","code_39","itf","qr_code"]
+          });
+        }
+      }catch(_){
+        alert("Formato de leitor por camera indisponivel no navegador.");
+        return;
+      }
+
+      const modal = document.getElementById("scanModal");
+      const video = document.getElementById("scanVideo");
+      if(!modal || !video) return;
+      modal.style.display = "flex";
+      if(statusEl) statusEl.textContent = "Abrindo camera...";
+
+      try{
+        scanStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } },
+          audio: false
+        });
+        video.srcObject = scanStream;
+        await video.play();
+      }catch(_){
+        if(statusEl) statusEl.textContent = "Nao foi possivel acessar a camera.";
+        return;
+      }
+
+      if(statusEl) statusEl.textContent = "Aponte para o codigo de barras...";
+      scanTimer = setInterval(async () => {
+        if(!barcodeDetector || !video || video.readyState < 2) return;
+        try{
+          const codigos = await barcodeDetector.detect(video);
+          if(!codigos || !codigos.length) return;
+          const valor = String(codigos[0].rawValue || "").trim();
+          if(!valor) return;
+          if(statusEl) statusEl.textContent = `Codigo lido: ${valor}`;
+          const input = document.getElementById("peca_busca");
+          if(input) input.value = valor;
+          fecharScannerCamera();
+          await adicionarPorCodigoBarras();
+        }catch(_){}
+      }, 300);
+    }
 
     function initPad(){
       const c = document.getElementById("pad");
@@ -75,7 +297,7 @@
     }
 
     async function carregar(){
-      const r = await fetch(`/api/tecnico/ordem/${osId}`);
+      const r = await fetch(caminhoServidor(`/api/tecnico/ordem/${osId}`));
       const j = await r.json();
       if(!r.ok || !j.ok){
         document.getElementById("box").innerHTML = `<div class='card'>${esc(j.erro || "Erro ao carregar atendimento")}</div>`;
@@ -92,7 +314,7 @@
         itensHtml = `<div class='itens-list'><table><thead><tr><th>Item</th><th>Qtd</th><th>Subtotal</th></tr></thead><tbody>${itens.map(i=>`<tr><td>${esc(i.descricao)}</td><td>${i.quantidade}</td><td>R$ ${moeda(i.subtotal)}</td></tr>`).join("")}</tbody></table><div style='font-size:12px;color:#475569;margin-top:6px;'><strong>Total peças:</strong> R$ ${moeda(total)}</div></div>`;
       }
 
-      document.getElementById("box").innerHTML = `
+	      document.getElementById("box").innerHTML = `
         <article class='card'>
           <h2 style='margin:0;'>OS #${ordemAtual.id} - ${esc(ordemAtual.servico_nome || "Serviço")}</h2>
           <div class='line'><strong>Status:</strong> ${esc(ordemAtual.status || "-")}</div>
@@ -112,27 +334,37 @@
             </div>
           </div>
 
-          <div class='section'>
-            <h3>Peças Utilizadas</h3>
-            <input class='peca-search' id='peca_busca' type='text' placeholder='Buscar peça por nome/código' oninput='buscarPeca()' autocomplete='off'>
-            <div class='result-box' id='peca_result'></div>
-            <div style='margin-top:6px;'>
-              <input class='qtd-input' id='peca_qtd' type='number' min='1' value='1'>
-            </div>
-            <button class='btn btn-save' style='margin-top:8px;' type='button' onclick='adicionarPeca()'>Adicionar Peça</button>
+	          <div class='section'>
+	            <h3>Peças Utilizadas</h3>
+	            <input class='peca-search' id='peca_busca' type='text' placeholder='Buscar peça por nome/código' oninput='buscarPeca()' autocomplete='off'>
+              <div class='scan-help'>Use leitor: bip no campo e pressione Enter para adicionar automaticamente.</div>
+	            <div class='result-box' id='peca_result'></div>
+	            <div style='margin-top:6px;'>
+	              <input class='qtd-input' id='peca_qtd' type='number' min='1' value='1'>
+	            </div>
+              <button class='btn btn-save' style='margin-top:8px;' type='button' onclick='adicionarPeca()'>Adicionar Peça</button>
+              <button class='btn btn-scan' type='button' onclick='abrirScannerCamera()'>Ler pela Camera</button>
             ${itensHtml}
           </div>
         </article>
       `;
 
-      initPad();
-    }
+	      initPad();
+        const inputPeca = document.getElementById("peca_busca");
+        if(inputPeca){
+          inputPeca.addEventListener("keydown", async (ev) => {
+            if(ev.key !== "Enter") return;
+            ev.preventDefault();
+            await adicionarPorCodigoBarras();
+          });
+        }
+	    }
 
     async function salvarEvidencias(){
       const fd = new FormData();
       fd.append("assinatura_nome", document.getElementById("assinatura_nome")?.value || "");
       fd.append("assinatura_imagem", document.getElementById("assinatura_img")?.value || "");
-      const r = await fetch(`/api/tecnico/ordem/${osId}/evidencias`, {method:"POST", body:fd});
+      const r = await fetch(caminhoServidor(`/api/tecnico/ordem/${osId}/evidencias`), {method:"POST", body:fd});
       const j = await r.json();
       if(!r.ok || !j.ok){ alert(j.erro || "Erro ao salvar assinatura"); return; }
       alert("Assinatura salva.");
@@ -140,7 +372,7 @@
     }
 
     async function finalizarAtendimento(){
-      const r = await fetch(`/api/tecnico/ordem/${osId}/status`, {
+      const r = await fetch(caminhoServidor(`/api/tecnico/ordem/${osId}/status`), {
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({status:"Finalizado"})
@@ -148,18 +380,28 @@
       const j = await r.json();
       if(!r.ok || !j.ok){ alert(j.erro || "Erro ao finalizar"); return; }
       alert("Atendimento enviado para conferência no caixa.");
-      window.location.href = "/app_tecnico";
+      window.location.href = caminhoServidor("/app_tecnico");
     }
 
-    async function buscarPeca(){
+    async function buscarPeca(termoForcado = null){
       const input = document.getElementById("peca_busca");
       const box = document.getElementById("peca_result");
-      const termo = (input?.value || "").trim();
-      if(termo.length < 2){ box.style.display="none"; box.innerHTML=""; return; }
-      const r = await fetch(`/buscar_produto?q=${encodeURIComponent(termo)}`);
+      const termo = termoForcado === null ? (input?.value || "").trim() : String(termoForcado).trim();
+      if(termo.length < 2){
+        if(box){ box.style.display="none"; box.innerHTML=""; }
+        return [];
+      }
+      const r = await fetch(caminhoServidor(`/buscar_produto?q=${encodeURIComponent(termo)}`));
       const produtos = await r.json();
       const lista = (produtos || []).filter(p => String(p.tipo || "produto").toLowerCase() !== "servico");
-      if(!lista.length){ box.style.display="block"; box.innerHTML = `<div class='result-item'>Nenhuma peça encontrada.</div>`; return; }
+      if(!lista.length){
+        if(box){
+          box.style.display="block";
+          box.innerHTML = `<div class='result-item'>Nenhuma peça encontrada.</div>`;
+        }
+        return [];
+      }
+      if(!box) return lista;
       box.style.display = "block";
       box.innerHTML = "";
       lista.forEach(p => {
@@ -167,20 +409,35 @@
         div.className = "result-item";
         div.textContent = `${p.nome} | R$ ${moeda(p.preco)} | Est: ${p.estoque}`;
         div.onclick = () => {
-          produtoSelecionado = p;
-          input.value = `${p.nome} (R$ ${moeda(p.preco)})`;
-          box.style.display = "none";
-          box.innerHTML = "";
+          selecionarProduto(p);
         };
         box.appendChild(div);
       });
+      return lista;
     }
 
-    async function adicionarPeca(){
+    async function adicionarPorCodigoBarras(){
+      const input = document.getElementById("peca_busca");
+      const termo = (input?.value || "").trim();
+      if(!termo || termo.length < 3){
+        alert("Informe ou bip um código válido.");
+        return;
+      }
+      const lista = await buscarPeca(termo);
+      if(!lista.length){
+        alert("Código não encontrado.");
+        return;
+      }
+      const encontrado = lista.find(p => codigoExato(p, termo)) || lista[0];
+      selecionarProduto(encontrado);
+      await adicionarPeca();
+    }
+
+	    async function adicionarPeca(){
       if(!produtoSelecionado || !produtoSelecionado.id){ alert("Selecione uma peça."); return; }
       const qtd = Number(document.getElementById("peca_qtd")?.value || 0);
       if(qtd <= 0){ alert("Quantidade inválida."); return; }
-      const r = await fetch(`/api/tecnico/ordem/${osId}/adicionar_item`, {
+      const r = await fetch(caminhoServidor(`/api/tecnico/ordem/${osId}/adicionar_item`), {
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({produto_id: produtoSelecionado.id, quantidade: qtd})
@@ -193,7 +450,9 @@
       await carregar();
     }
 
-    carregar();
-  </script>
+      configurarServidorUI();
+	    carregar();
+      window.addEventListener("beforeunload", pararScannerCamera);
+	  </script>
 </body>
 </html>

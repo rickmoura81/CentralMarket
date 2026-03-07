@@ -173,18 +173,14 @@ Status: {{ os.status }}
 
 {% if os.status == "Agendado" %}
 
-<a href="/mudar_status/{{ os.id }}/Em Atendimento">
-<button class="btn-iniciar">
-▶ Iniciar
-</button>
+<a href="{{ url_for('mudar_status', id=os.id, status='Em Atendimento', tecnico=request.args.get('tecnico','')) }}">
+<button class="btn-iniciar">▶ Iniciar</button>
 </a>
 
 {% elif os.status == "Em Atendimento" %}
 
-<a href="/mudar_status/{{ os.id }}/Finalizado">
-<button class="btn-finalizar">
-✔ Finalizar
-</button>
+<a href="{{ url_for('mudar_status', id=os.id, status='Finalizado', tecnico=request.args.get('tecnico','')) }}">
+<button class="btn-finalizar">✔ Finalizar</button>
 </a>
 
 {% else %}

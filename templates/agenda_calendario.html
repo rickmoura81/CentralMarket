@@ -31,6 +31,29 @@ box-shadow:0 2px 5px rgba(0,0,0,0.1);
 margin-bottom:15px;
 }
 
+.atalhos{
+display:flex;
+gap:8px;
+align-items:center;
+flex-wrap:wrap;
+margin-bottom:12px;
+}
+
+.atalhos input,
+.atalhos button{
+padding:7px 10px;
+border:1px solid #cbd5e1;
+border-radius:6px;
+font-size:14px;
+}
+
+.atalhos button{
+background:#0f766e;
+color:#fff;
+border-color:#0f766e;
+cursor:pointer;
+}
+
 .fc-timegrid-event {
 min-height: 70px;
 }
@@ -44,6 +67,24 @@ padding:4px;
 
 .fc-event-title{
 white-space:normal;
+}
+
+.legenda{
+display:flex;
+gap:12px;
+margin:10px 0 14px;
+font-size:13px;
+color:#334155;
+flex-wrap:wrap;
+}
+
+.dot{
+display:inline-block;
+width:10px;
+height:10px;
+border-radius:50%;
+margin-right:6px;
+vertical-align:middle;
 }
 
 </style>
@@ -68,6 +109,18 @@ white-space:normal;
 
 </div>
 
+<div class="atalhos">
+<label for="irData"><strong>Ir para data:</strong></label>
+<input type="date" id="irData">
+<button type="button" id="btnIrData">Ir</button>
+</div>
+
+<div class="legenda">
+<div><span class="dot" style="background:#f59e0b;"></span>Agendado</div>
+<div><span class="dot" style="background:#fb923c;"></span>Em Atendimento</div>
+<div><span class="dot" style="background:#16a34a;"></span>Finalizado</div>
+</div>
+
 <div id="calendar"></div>
 
 <script>
@@ -75,10 +128,11 @@ white-space:normal;
 document.addEventListener('DOMContentLoaded', function() {
 
 let calendarEl = document.getElementById('calendar')
+let isMobile = window.innerWidth <= 768
 
 let calendar = new FullCalendar.Calendar(calendarEl, {
 
-initialView:'timeGridWeek',
+initialView:isMobile ? 'timeGridDay' : 'timeGridWeek',
 
 locale:'pt-br',
 
@@ -99,15 +153,33 @@ events:function(fetchInfo, successCallback){
 
 let tecnico = document.getElementById("tecnicoFiltro").value
 
-fetch("/eventos_agenda?tecnico="+tecnico)
+fetch("/eventos_agenda?tecnico="+encodeURIComponent(tecnico))
 .then(res => res.json())
-.then(data => successCallback(data))
+.then(data => {
+const eventos = (data || []).map(ev => {
+let cor = "#f59e0b";
+if(ev.status === "Em Atendimento") cor = "#fb923c";
+if(ev.status === "Finalizado") cor = "#16a34a";
+return {
+...ev,
+backgroundColor: cor,
+borderColor: cor,
+textColor: "#ffffff"
+};
+});
+successCallback(eventos);
+})
 
 },
 
 editable:true,
 
 eventDrop:function(info){
+
+if(!confirm("Confirmar alteração de data/hora deste atendimento?")){
+info.revert()
+return
+}
 
 let dataHora = info.event.startStr
 
@@ -125,6 +197,17 @@ data:dataHora
 })
 
 })
+.then(r => r.json())
+.then(j => {
+if(!j.ok){
+alert(j.erro || "Nao foi possivel mover o evento.")
+info.revert()
+}
+})
+.catch(() => {
+alert("Falha de conexao ao mover evento.")
+info.revert()
+})
 
 },
 
@@ -132,6 +215,7 @@ eventContent:function(info){
 
 let cliente = info.event.extendedProps.cliente || ""
 let tecnico = info.event.extendedProps.tecnico || ""
+let status = info.event.extendedProps.status || ""
 
 let hora = info.timeText
 
@@ -142,6 +226,7 @@ let html = `
 <div>${info.event.title}</div>
 <div>👤 ${cliente}</div>
 <div>👨‍🔧 ${tecnico}</div>
+<div>📌 ${status}</div>
 
 </div>
 `
@@ -151,14 +236,76 @@ return { html: html }
 },
 
 eventClick:function(info){
+const acao = prompt("Digite:\n1 = Abrir OS\n2 = Alterar apenas a data", "2")
+if(!acao) return
+const escolha = acao.trim()
+if(escolha === "1"){
+window.location.href="/ordem/"+info.event.id
+return
+}
+if(escolha !== "2"){
+alert("Opcao invalida.")
+return
+}
 
-window.location.href="/ordem_servico/"+info.event.id
+const dataAtual = info.event.startStr.split("T")[0]
+const novaData = prompt("Nova data (AAAA-MM-DD):", dataAtual)
+if(!novaData) return
+if(!/^\d{4}-\d{2}-\d{2}$/.test(novaData.trim())){
+alert("Data invalida. Use o formato AAAA-MM-DD.")
+return
+}
+
+let payloadData = novaData.trim()
+const horaAtual = (info.event.startStr.split("T")[1] || "").slice(0,5)
+if(horaAtual){
+payloadData = `${payloadData}T${horaAtual}`
+}
+
+fetch("/mover_evento",{
+method:"POST",
+headers:{
+"Content-Type":"application/json"
+},
+body:JSON.stringify({
+id:info.event.id,
+data:payloadData
+})
+})
+.then(r => r.json())
+.then(j => {
+if(!j.ok){
+alert(j.erro || "Nao foi possivel alterar a data.")
+return
+}
+calendar.refetchEvents()
+})
+.catch(() => {
+alert("Falha de conexao ao alterar data.")
+})
 
 }
 
 })
 
 calendar.render()
+
+const inputIrData = document.getElementById("irData")
+const btnIrData = document.getElementById("btnIrData")
+
+function irParaDataSelecionada(){
+const valor = (inputIrData.value || "").trim()
+if(!valor) return
+calendar.gotoDate(valor)
+}
+
+btnIrData.addEventListener("click", irParaDataSelecionada)
+inputIrData.addEventListener("keydown", function(ev){
+if(ev.key === "Enter"){
+ev.preventDefault()
+irParaDataSelecionada()
+}
+})
 
 document.getElementById("tecnicoFiltro").addEventListener("change", function(){
 

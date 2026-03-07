@@ -1,22 +1,79 @@
 {% extends "base.html" %}
 {% block content %}
+<style>
+.produto-msg-ok{
+    background:#dcfce7;
+    color:#166534;
+    border:1px solid #86efac;
+    padding:10px 12px;
+    border-radius:6px;
+    margin-bottom:12px;
+}
+
+.produto-msg-erro{
+    background:#fef2f2;
+    color:#991b1b;
+    border:1px solid #fecaca;
+    padding:10px 12px;
+    border-radius:6px;
+    margin-bottom:12px;
+}
+
+.busca-inline{
+    display:flex;
+    gap:10px;
+    align-items:center;
+}
+
+.busca-inline input{
+    margin:0;
+}
+
+.tabela-wrap{
+    overflow:auto;
+}
+
+.tabela-produtos{
+    width:100%;
+    border-collapse:collapse;
+    min-width:900px;
+}
+
+.tabela-produtos th, .tabela-produtos td{
+    border-bottom:1px solid #e5e7eb;
+    text-align:left;
+    padding:10px 8px;
+    white-space:nowrap;
+}
+
+.tabela-produtos th{
+    background:#0f172a;
+    color:#fff;
+}
+</style>
 
 <div class="card">
     <h2>Cadastro de Produto</h2>
+    {% if ok %}
+    <div class="produto-msg-ok">Produto salvo com sucesso.</div>
+    {% endif %}
+    {% if erro %}
+    <div class="produto-msg-erro">{{ erro }}</div>
+    {% endif %}
 
     <form method="POST">
 
         <label>SKU</label>
-        <input type="text" name="sku" required>
+        <input type="text" name="sku" required maxlength="80" autocomplete="off">
 
         <label>Nome</label>
-        <input type="text" name="nome" required>
+        <input type="text" name="nome" required maxlength="150">
 
         <label>Código de Barras</label>
-        <input type="text" name="codigo_barras">
+        <input type="text" name="codigo_barras" inputmode="numeric" maxlength="30">
 
         <label>Código do Fabricante</label>
-        <input type="text" name="codigo_fabricante">
+        <input type="text" name="codigo_fabricante" maxlength="80">
 
         <label>Categoria</label>
         <select name="categoria_id" required>
@@ -33,19 +90,19 @@
         </select>
 
         <label>Preço de Custo</label>
-        <input type="number" step="0.01" id="preco_custo" name="preco_custo" required>
+        <input type="number" step="0.01" min="0" id="preco_custo" name="preco_custo" required>
 
         <label>Margem (%)</label>
-        <input type="number" step="0.01" id="margem">
+        <input type="number" step="0.01" id="margem" min="-100">
 
         <label>Preço de Venda</label>
-        <input type="number" step="0.01" id="preco_venda" name="preco_venda" required>
+        <input type="number" step="0.01" min="0" id="preco_venda" name="preco_venda" required>
 
         <label>Unidade</label>
         <input type="text" name="unidade">
 
         <label>Estoque Mínimo</label>
-        <input type="number" name="estoque_minimo">
+        <input type="number" name="estoque_minimo" min="0" value="0">
 
         <label>NCM</label>
         <input type="text" name="ncm">
@@ -59,20 +116,24 @@
     </form>
 </div>
 
-<form method="GET">
-    <input type="text" name="busca" placeholder="Buscar por nome, SKU, FAB ou código de barras">
+<form method="GET" class="card busca-inline">
+    <input type="text" name="busca" value="{{ busca or '' }}" placeholder="Buscar por nome, SKU, FAB ou código de barras">
     <button type="submit">Buscar</button>
+    <a href="/produtos">Limpar</a>
 </form>
 
 <div class="card">
-    <h2>Lista de Produtos</h2>
-
-<table border="1" width="100%" cellpadding="8">
+    <h2>Lista de Produtos e Serviços</h2>
+<div class="tabela-wrap">
+<table class="tabela-produtos">
     <thead>
         <tr>
             <th>ID</th>
+            <th>Tipo</th>
             <th>Nome</th>
             <th>SKU</th>
+            <th>Categoria</th>
+            <th>Fornecedor</th>
             <th>FAB</th>
             <th>Estoque</th>
             <th>Preço Venda</th>
@@ -83,12 +144,16 @@
         {% for produto in produtos %}
         <tr>
             <td>{{ produto.id }}</td>
+            <td>{{ (produto.tipo or 'produto')|upper }}</td>
             <td>{{ produto.nome }}</td>
             <td>{{ produto.sku }}</td>
+            <td>{{ produto.categoria_nome or '-' }}</td>
+            <td>{{ produto.fornecedor_nome or '-' }}</td>
             <td>{{ produto.codigo_fabricante }}</td>
-            <td><a href="/editar/{{ produto.id }}">✏️ Editar</a></td>
             <td>
-    {% if produto.estoque <= produto.estoque_minimo %}
+    {% if (produto.tipo or 'produto') == 'servico' %}
+        -
+    {% elif produto.estoque <= produto.estoque_minimo %}
         <span style="color:red; font-weight:bold;">
             {{ produto.estoque }} ⚠ ESTOQUE BAIXO
         </span>
@@ -96,11 +161,13 @@
         {{ produto.estoque }}
     {% endif %}
 </td>
-            <td>R$ {{ produto.preco_venda }}</td>
+            <td>R$ {{ '%.2f'|format(produto.preco_venda or 0) }}</td>
+            <td><a href="/editar/{{ produto.id }}">✏️ Editar</a></td>
         </tr>
         {% endfor %}
     </tbody>
 </table>
+</div>
 
 </div>
 

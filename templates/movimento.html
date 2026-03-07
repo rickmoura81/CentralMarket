@@ -11,6 +11,10 @@ margin:0;
 background:#f4f6f9;
 }
 
+*{
+box-sizing:border-box;
+}
+
 .container{
 display:flex;
 height:100vh;
@@ -104,6 +108,30 @@ padding:2px 6px;
 border-radius:4px;
 font-size:11px;
 margin-left:6px;
+}
+
+@media (max-width: 900px){
+.container{
+flex-direction:column;
+height:auto;
+min-height:100vh;
+}
+
+.busca-area,.carrinho-area{
+width:100%;
+}
+
+.carrinho-area{
+padding-top:12px;
+}
+
+table{
+font-size:14px;
+}
+
+.total-box{
+font-size:22px;
+}
 }
 
 </style>
@@ -328,6 +356,7 @@ let servicoSelecionado=null
 let servicoSelecionadoDetalhe=null
 let horariosOcupados=[]
 let clienteSelecionadoId=""
+let buscaProdutoTimer=null
 
 function calcularDesconto(totalBruto){
     const tipo = document.getElementById("descontoTipo")?.value || "valor"
@@ -380,33 +409,41 @@ const subtotal=item.quantidade*item.preco
 
 total+=subtotal
 
-tabela.innerHTML+=`
+const tr = document.createElement("tr")
+const tdItem = document.createElement("td")
+tdItem.textContent = item.nome || ""
 
-<tr>
+if(item.tipo==="servico"){
+const tag = document.createElement("span")
+tag.className = "servico-tag"
+tag.textContent = "Serviço"
+tdItem.appendChild(document.createTextNode(" "))
+tdItem.appendChild(tag)
+}
 
-<td>
+const tdQtd = document.createElement("td")
+tdQtd.textContent = String(item.quantidade)
 
-${item.nome}
+const tdPreco = document.createElement("td")
+tdPreco.textContent = `R$ ${Number(item.preco || 0).toFixed(2)}`
 
-${item.tipo==="servico" ? '<span class="servico-tag">Serviço</span>' : ''}
+const tdSubtotal = document.createElement("td")
+tdSubtotal.textContent = `R$ ${Number(subtotal || 0).toFixed(2)}`
 
-</td>
+const tdAcoes = document.createElement("td")
+const btn = document.createElement("button")
+btn.className = "btn-remover"
+btn.type = "button"
+btn.textContent = "X"
+btn.addEventListener("click", () => removerItem(index))
+tdAcoes.appendChild(btn)
 
-<td>${item.quantidade}</td>
-
-<td>R$ ${item.preco.toFixed(2)}</td>
-
-<td>R$ ${subtotal.toFixed(2)}</td>
-
-<td>
-
-<button class="btn-remover" onclick="removerItem(${index})">X</button>
-
-</td>
-
-</tr>
-
-`
+tr.appendChild(tdItem)
+tr.appendChild(tdQtd)
+tr.appendChild(tdPreco)
+tr.appendChild(tdSubtotal)
+tr.appendChild(tdAcoes)
+tabela.appendChild(tr)
 
 })
 
@@ -433,17 +470,23 @@ atualizarCarrinho()
 
 document.getElementById("buscaProduto").addEventListener("input",function(){
 
-const termo=this.value
+const termo=this.value.trim()
+const ul=document.getElementById("resultadoBusca")
 
-if(termo.length<2)return
+clearTimeout(buscaProdutoTimer)
 
-fetch(`/buscar_produto?q=${termo}`)
+if(termo.length<2){
+ul.innerHTML=""
+return
+}
+
+buscaProdutoTimer = setTimeout(() => {
+
+fetch(`/buscar_produto?q=${encodeURIComponent(termo)}`)
 
 .then(res=>res.json())
 
 .then(data=>{
-
-const ul=document.getElementById("resultadoBusca")
 
 ul.innerHTML=""
 
@@ -458,6 +501,10 @@ li.innerText=`${prod.nome} - R$ ${preco.toFixed(2)} (${prod.tipo})`
 li.onclick=()=>{
 
 const qtd=parseInt(document.getElementById("quantidadeProduto").value)
+if(!Number.isInteger(qtd) || qtd < 1){
+alert("Quantidade inválida")
+return
+}
 
 carrinho.push({
 
@@ -506,6 +553,11 @@ ul.appendChild(li)
 })
 
 })
+.catch(() => {
+ul.innerHTML=""
+})
+
+}, 250)
 
 })
 
@@ -570,7 +622,13 @@ function confirmarAgendamento(){
             quantidade_mao_obra: servicoSelecionadoDetalhe ? Number(servicoSelecionadoDetalhe.quantidade || 1) : 1
         })
     })
-    .then(res => res.json())
+    .then(async res => {
+        const payload = await res.json()
+        if(!res.ok){
+            throw new Error(payload.erro || "Falha ao criar Ordem de Serviço")
+        }
+        return payload
+    })
     .then(data => {
 
         alert("Ordem de Serviço criada!")
@@ -581,6 +639,9 @@ function confirmarAgendamento(){
 
         fecharModal()
 
+    })
+    .catch(err => {
+        alert(err.message || "Falha ao criar Ordem de Serviço")
     })
 
 }
