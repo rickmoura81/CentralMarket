@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Atendimento Técnico</title>
+  <style>
+    body{font-family:Arial,sans-serif;margin:0;background:#eef3f6;color:#0f172a}
+    .wrap{max-width:760px;margin:0 auto;padding:12px}
+    .card{background:#fff;border:1px solid #dbe5e8;border-radius:12px;padding:12px;margin-bottom:10px}
+    .top{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+    .btn,.link{border:0;border-radius:8px;padding:9px 11px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block}
+    .btn-back{background:#64748b;color:#fff}
+    .btn-save{background:#0f766e;color:#fff}
+    .btn-end{background:#16a34a;color:#fff}
+    .btn-map{background:#2563eb;color:#fff}
+    .line{margin-top:6px;font-size:14px}
+    .section{margin-top:10px;border:1px dashed #dbe5e8;border-radius:10px;padding:10px;background:#f7fbfc}
+    .section h3{margin:0 0 8px;color:#0f766e;font-size:13px;text-transform:uppercase}
+    .sign,.peca-search,.qtd-input{width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:8px}
+    .sig-wrap{margin-top:8px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;padding:6px}
+    .sig-pad{width:100%;height:110px;border:1px dashed #94a3b8;border-radius:6px;background:#fff;touch-action:none}
+    .btn-clear{background:#cbd5e1;color:#111827;border:0;border-radius:8px;padding:7px 10px;margin-top:6px}
+    .result-box{border:1px solid #cbd5e1;border-radius:8px;margin-top:6px;background:#fff;max-height:170px;overflow:auto;display:none}
+    .result-item{padding:8px;border-bottom:1px solid #e2e8f0;cursor:pointer;font-size:13px}
+    .result-item:last-child{border-bottom:0}
+    .result-item:hover{background:#f8fafc}
+    .itens-list{margin-top:8px;border:1px solid #dbe5e8;border-radius:8px;background:#fff;padding:8px}
+    .itens-list table{width:100%;border-collapse:collapse}
+    .itens-list th,.itens-list td{padding:5px;border-bottom:1px solid #e2e8f0;text-align:left;font-size:12px}
+    .itens-list tr:last-child td{border-bottom:0}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <a class="link btn-back" href="/app_tecnico">Voltar Agenda</a>
+      <button class="btn btn-save" onclick="salvarEvidencias()">Salvar Assinatura</button>
+      <button class="btn btn-end" onclick="finalizarAtendimento()">Finalizar Atendimento</button>
+      <a id="btnMapa" class="link btn-map" href="#" target="_blank" rel="noopener">Mapa</a>
+    </div>
+
+    <div id="box"></div>
+  </div>
+
+  <script>
+    const osId = {{ os_id }};
+    let ordemAtual = null;
+    let produtoSelecionado = null;
+
+    function esc(str){
+      if(!str) return "";
+      return String(str).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+    }
+    function moeda(v){ return Number(v||0).toFixed(2); }
+    function endereco(o){ return [o.endereco,o.numero,o.bairro,o.cidade].filter(Boolean).join(" ").trim(); }
+
+    function initPad(){
+      const c = document.getElementById("pad");
+      const hidden = document.getElementById("assinatura_img");
+      if(!c || !hidden) return;
+      const ctx = c.getContext("2d");
+      let draw = false;
+      function pos(ev){
+        const r = c.getBoundingClientRect();
+        const p = ev.touches ? ev.touches[0] : ev;
+        return {x:p.clientX-r.left,y:p.clientY-r.top};
+      }
+      function st(ev){draw=true; const p=pos(ev); ctx.beginPath(); ctx.moveTo(p.x,p.y); ev.preventDefault();}
+      function mv(ev){ if(!draw) return; const p=pos(ev); ctx.lineWidth=2; ctx.lineCap="round"; ctx.strokeStyle="#111827"; ctx.lineTo(p.x,p.y); ctx.stroke(); ev.preventDefault(); }
+      function en(){ if(!draw) return; draw=false; hidden.value=c.toDataURL("image/png"); }
+      c.addEventListener("mousedown",st); c.addEventListener("mousemove",mv); window.addEventListener("mouseup",en);
+      c.addEventListener("touchstart",st,{passive:false}); c.addEventListener("touchmove",mv,{passive:false}); c.addEventListener("touchend",en);
+      document.getElementById("clear").onclick = ()=>{ ctx.clearRect(0,0,c.width,c.height); hidden.value=""; };
+    }
+
+    async function carregar(){
+      const r = await fetch(`/api/tecnico/ordem/${osId}`);
+      const j = await r.json();
+      if(!r.ok || !j.ok){
+        document.getElementById("box").innerHTML = `<div class='card'>${esc(j.erro || "Erro ao carregar atendimento")}</div>`;
+        return;
+      }
+      ordemAtual = j.ordem;
+      const maps = endereco(ordemAtual) ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(endereco(ordemAtual))}` : "#";
+      document.getElementById("btnMapa").href = maps;
+
+      const itens = ordemAtual.itens || [];
+      let itensHtml = `<div style='font-size:12px;color:#64748b;'>Nenhuma peça adicionada.</div>`;
+      if(itens.length){
+        const total = itens.reduce((s,i)=>s+Number(i.subtotal||0),0);
+        itensHtml = `<div class='itens-list'><table><thead><tr><th>Item</th><th>Qtd</th><th>Subtotal</th></tr></thead><tbody>${itens.map(i=>`<tr><td>${esc(i.descricao)}</td><td>${i.quantidade}</td><td>R$ ${moeda(i.subtotal)}</td></tr>`).join("")}</tbody></table><div style='font-size:12px;color:#475569;margin-top:6px;'><strong>Total peças:</strong> R$ ${moeda(total)}</div></div>`;
+      }
+
+      document.getElementById("box").innerHTML = `
+        <article class='card'>
+          <h2 style='margin:0;'>OS #${ordemAtual.id} - ${esc(ordemAtual.servico_nome || "Serviço")}</h2>
+          <div class='line'><strong>Status:</strong> ${esc(ordemAtual.status || "-")}</div>
+          <div class='line'><strong>Cliente:</strong> ${esc(ordemAtual.cliente || "-")}</div>
+          <div class='line'><strong>Telefone:</strong> ${esc(ordemAtual.telefone || "-")}</div>
+          <div class='line'><strong>Endereço:</strong> ${esc(endereco(ordemAtual) || "-")}</div>
+          <div class='line'><strong>Defeito:</strong> ${esc(ordemAtual.defeito_reclamado || "-")}</div>
+          <div class='line'><strong>Produto:</strong> ${esc(ordemAtual.produto_defeito || "-")}</div>
+
+          <div class='section'>
+            <h3>Assinatura do Cliente</h3>
+            <input class='sign' id='assinatura_nome' type='text' value='${esc(ordemAtual.assinatura_nome || "")}' placeholder='Nome do cliente'>
+            <input id='assinatura_img' type='hidden' value=''>
+            <div class='sig-wrap'>
+              <canvas id='pad' class='sig-pad' width='600' height='220'></canvas>
+              <button id='clear' class='btn-clear' type='button'>Limpar Assinatura</button>
+            </div>
+          </div>
+
+          <div class='section'>
+            <h3>Peças Utilizadas</h3>
+            <input class='peca-search' id='peca_busca' type='text' placeholder='Buscar peça por nome/código' oninput='buscarPeca()' autocomplete='off'>
+            <div class='result-box' id='peca_result'></div>
+            <div style='margin-top:6px;'>
+              <input class='qtd-input' id='peca_qtd' type='number' min='1' value='1'>
+            </div>
+            <button class='btn btn-save' style='margin-top:8px;' type='button' onclick='adicionarPeca()'>Adicionar Peça</button>
+            ${itensHtml}
+          </div>
+        </article>
+      `;
+
+      initPad();
+    }
+
+    async function salvarEvidencias(){
+      const fd = new FormData();
+      fd.append("assinatura_nome", document.getElementById("assinatura_nome")?.value || "");
+      fd.append("assinatura_imagem", document.getElementById("assinatura_img")?.value || "");
+      const r = await fetch(`/api/tecnico/ordem/${osId}/evidencias`, {method:"POST", body:fd});
+      const j = await r.json();
+      if(!r.ok || !j.ok){ alert(j.erro || "Erro ao salvar assinatura"); return; }
+      alert("Assinatura salva.");
+      await carregar();
+    }
+
+    async function finalizarAtendimento(){
+      const r = await fetch(`/api/tecnico/ordem/${osId}/status`, {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({status:"Finalizado"})
+      });
+      const j = await r.json();
+      if(!r.ok || !j.ok){ alert(j.erro || "Erro ao finalizar"); return; }
+      alert("Atendimento enviado para conferência no caixa.");
+      window.location.href = "/app_tecnico";
+    }
+
+    async function buscarPeca(){
+      const input = document.getElementById("peca_busca");
+      const box = document.getElementById("peca_result");
+      const termo = (input?.value || "").trim();
+      if(termo.length < 2){ box.style.display="none"; box.innerHTML=""; return; }
+      const r = await fetch(`/buscar_produto?q=${encodeURIComponent(termo)}`);
+      const produtos = await r.json();
+      const lista = (produtos || []).filter(p => String(p.tipo || "produto").toLowerCase() !== "servico");
+      if(!lista.length){ box.style.display="block"; box.innerHTML = `<div class='result-item'>Nenhuma peça encontrada.</div>`; return; }
+      box.style.display = "block";
+      box.innerHTML = "";
+      lista.forEach(p => {
+        const div = document.createElement("div");
+        div.className = "result-item";
+        div.textContent = `${p.nome} | R$ ${moeda(p.preco)} | Est: ${p.estoque}`;
+        div.onclick = () => {
+          produtoSelecionado = p;
+          input.value = `${p.nome} (R$ ${moeda(p.preco)})`;
+          box.style.display = "none";
+          box.innerHTML = "";
+        };
+        box.appendChild(div);
+      });
+    }
+
+    async function adicionarPeca(){
+      if(!produtoSelecionado || !produtoSelecionado.id){ alert("Selecione uma peça."); return; }
+      const qtd = Number(document.getElementById("peca_qtd")?.value || 0);
+      if(qtd <= 0){ alert("Quantidade inválida."); return; }
+      const r = await fetch(`/api/tecnico/ordem/${osId}/adicionar_item`, {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({produto_id: produtoSelecionado.id, quantidade: qtd})
+      });
+      const j = await r.json();
+      if(!r.ok || !j.ok){ alert(j.erro || "Erro ao adicionar peça"); return; }
+      produtoSelecionado = null;
+      document.getElementById("peca_busca").value = "";
+      document.getElementById("peca_qtd").value = "1";
+      await carregar();
+    }
+
+    carregar();
+  </script>
+</body>
+</html>

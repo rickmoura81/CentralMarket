@@ -5,10 +5,18 @@
 <title>Cupom</title>
 
 <style>
+@page {
+    size: 80mm auto;
+    margin: 0;
+}
+
 body {
-    width: 300px; /* largura tipo térmica */
+    width: 72mm;
     font-family: monospace;
     font-size: 14px;
+    margin: 0 auto;
+    padding: 2mm;
+    box-sizing: border-box;
 }
 
 .center {
@@ -24,13 +32,20 @@ hr {
 <body>
 
 <div class="center">
-    <strong>SUA LOJA</strong><br>
-    CNPJ: 00.000.000/0001-00<br>
+    <strong>{{ loja.nome_fantasia or "SUA LOJA" }}</strong><br>
+    {% if loja.razao_social %}{{ loja.razao_social }}<br>{% endif %}
+    {% if loja.cnpj %}CNPJ: {{ loja.cnpj }}<br>{% endif %}
+    {% if loja.telefone %}Tel: {{ loja.telefone }}<br>{% endif %}
+    {% if loja.endereco %}
+        {{ loja.endereco }}{% if loja.numero %}, {{ loja.numero }}{% endif %}<br>
+        {% if loja.bairro %}{{ loja.bairro }}{% if loja.cidade %} - {{ loja.cidade }}{% endif %}{% elif loja.cidade %}{{ loja.cidade }}{% endif %}<br>
+    {% endif %}
     ---------------------------
 </div>
 
 Pedido: {{ pedido.id }} <br>
 Data: {{ data }}<br>
+Funcionario: #{{ pedido.funcionario_id or "-" }}{% if pedido.funcionario_nome %} - {{ pedido.funcionario_nome }}{% endif %}<br>
 
 <hr>
 
@@ -43,12 +58,20 @@ Data: {{ data }}<br>
 <hr>
 
 TOTAL: R$ {{ "%.2f"|format(pedido.total) }}<br>
+{% if pedido.desconto_valor and pedido.desconto_valor > 0 %}
+Desconto: R$ {{ "%.2f"|format(pedido.desconto_valor) }}
+{% if pedido.desconto_tipo %} ({{ pedido.desconto_tipo }}){% endif %}<br>
+{% endif %}
 Pagamento: {{ pedido.forma_pagamento }}
+{% if pedido.forma_pagamento == "DINHEIRO" and pedido.valor_recebido and pedido.valor_recebido > 0 %}
+<br>Recebido: R$ {{ "%.2f"|format(pedido.valor_recebido) }}
+<br>Troco: R$ {{ "%.2f"|format(pedido.troco or 0) }}
+{% endif %}
 
 <hr>
 
 <div class="center">
-    Obrigado pela preferência!
+    {{ loja.mensagem_cupom or "Obrigado pela preferencia!" }}
 </div>
 
 <script>

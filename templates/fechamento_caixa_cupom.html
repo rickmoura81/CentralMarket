@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Cupom Fechamento Caixa</title>
+<style>
+@page {
+    size: 80mm auto;
+    margin: 0;
+}
+
+body {
+    width: 72mm;
+    font-family: monospace;
+    font-size: 13px;
+    margin: 0 auto;
+    padding: 2mm;
+    box-sizing: border-box;
+}
+.center { text-align: center; }
+hr {
+    border: none;
+    border-top: 1px dashed #000;
+    margin: 8px 0;
+}
+.row {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+.small { font-size: 12px; }
+.bold { font-weight: bold; }
+</style>
+</head>
+<body>
+
+<div class="center bold">FECHAMENTO DE CAIXA</div>
+<div class="center small">Caixa #{{ caixa_id }}</div>
+<hr>
+
+<div class="small">Abertura: {{ data_abertura or '-' }}</div>
+<div class="small">Fechamento: {{ data_fechamento or '-' }}</div>
+<div class="small">Status: {{ status or '-' }}</div>
+<hr>
+
+<div class="row"><span>Valor inicial</span><span>R$ {{ "%.2f"|format(valor_inicial) }}</span></div>
+<div class="row"><span>Total vendas</span><span>R$ {{ "%.2f"|format(total_vendas) }}</span></div>
+<div class="row"><span>Qtd. vendas</span><span>{{ qtd_vendas }}</span></div>
+<div class="row"><span>Ticket medio</span><span>R$ {{ "%.2f"|format(ticket_medio) }}</span></div>
+<div class="row bold"><span>Valor final</span><span>R$ {{ "%.2f"|format(valor_final) }}</span></div>
+
+<hr>
+<div class="bold">FORMAS DE PAGAMENTO</div>
+{% if formas_pagamento %}
+    {% for forma, total in formas_pagamento.items() %}
+    <div class="row"><span>{{ forma }}</span><span>R$ {{ "%.2f"|format(total) }}</span></div>
+    {% endfor %}
+{% else %}
+    <div class="small">Sem vendas registradas.</div>
+{% endif %}
+
+<hr>
+<div class="row"><span>Dinheiro</span><span>R$ {{ "%.2f"|format(dinheiro) }}</span></div>
+<div class="row"><span>PIX</span><span>R$ {{ "%.2f"|format(pix) }}</span></div>
+<div class="row"><span>Cartao</span><span>R$ {{ "%.2f"|format(cartao) }}</span></div>
+
+<hr>
+<div class="center">CentralMarket ERP</div>
+
+<script>
+window.print();
+window.onafterprint = () => window.close();
+</script>
+
+</body>
+</html>

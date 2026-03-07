@@ -8,15 +8,40 @@
 
 <div class="sidebar">
     <h2>CentralMarket</h2>
+    {% if usuario_logado %}
+    <div class="nav-title">Usuario</div>
+    <div style="padding:0 20px 10px;color:#cbd5e1;font-size:13px;">
+        {{ usuario_logado }}<br>
+        <strong>{{ perfil_logado|upper }}</strong>
+    </div>
+    {% endif %}
 
+    <div class="nav-title">Principal</div>
     <a href="/">Dashboard</a>
+    <a href="/movimento/1">PDV</a>
+
+    <div class="nav-title">Caixa</div>
+    <a href="/caixa">Abertura e Fechamento</a>
+    <a href="/painel_caixa">Painel do Caixa</a>
+    <a href="/caixa_pedidos">Pedidos no Caixa</a>
+
+    <div class="nav-title">Cadastros</div>
+    <a href="/loja_config">Loja (Cupom)</a>
+    <a href="/config_descontos">Config. Descontos</a>
+    <a href="/clientes">Clientes</a>
+    <a href="/funcionarios">Funcionários</a>
     <a href="/categorias">Categorias</a>
     <a href="/fornecedores">Fornecedores</a>
-    <a href="/produtos">Produtos</a>
-    <a href="#">Estoque</a>
-    <a href="#">Vendas</a>
-    
+    <a href="/produtos">Produtos e Serviços</a>
 
+    <div class="nav-title">Serviços</div>
+    <a href="/ordens_servico">Ordens de Serviço</a>
+    <a href="/app_tecnico">App Técnico (Android)</a>
+    <a href="/agenda">Agenda Calendário</a>
+    <a href="/agenda_dia">Agenda do Dia</a>
+    <a href="/agenda_semana">Agenda da Semana</a>
+    <div class="nav-title">Conta</div>
+    <a href="/logout">Sair</a>
 </div>
 
 <div class="main">

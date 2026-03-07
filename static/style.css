@@ -7,24 +7,34 @@ body {
 
 /* MENU LATERAL */
 .sidebar {
-    width: 220px;
+    width: 260px;
     background-color: #1e293b;
     height: 100vh;
     color: white;
-    padding-top: 20px;
+    padding: 20px 0 24px;
     position: fixed;
+    overflow-y: auto;
 }
 
 .sidebar h2 {
     text-align: center;
-    margin-bottom: 30px;
+    margin: 0 0 18px;
+}
+
+.nav-title {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #94a3b8;
+    padding: 12px 20px 6px;
 }
 
 .sidebar a {
     display: block;
     color: white;
-    padding: 12px 20px;
+    padding: 10px 20px;
     text-decoration: none;
+    font-size: 14px;
 }
 
 .sidebar a:hover {
@@ -33,7 +43,7 @@ body {
 
 /* CONTEÚDO */
 .main {
-    margin-left: 220px;
+    margin-left: 260px;
     padding: 30px;
     width: 100%;
 }
@@ -76,4 +86,47 @@ ul {
 li {
     padding: 8px;
     border-bottom: 1px solid #eee;
+}
+
+.quick-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+}
+
+.actions {
+    display: grid;
+    gap: 10px;
+}
+
+.btn-link {
+    display: inline-block;
+    text-decoration: none;
+    background: #0f766e;
+    color: white;
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 14px;
+    text-align: center;
+}
+
+.btn-link:hover {
+    background: #115e59;
+}
+
+@media (max-width: 900px) {
+    body {
+        display: block;
+    }
+
+    .sidebar {
+        position: static;
+        width: 100%;
+        height: auto;
+    }
+
+    .main {
+        margin-left: 0;
+        padding: 16px;
+    }
 }

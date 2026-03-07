@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>App Tecnico - CentralMarket</title>
+  <meta name="theme-color" content="#0f766e">
+  <link rel="manifest" href="/app_tecnico/manifest.webmanifest">
+  <style>
+    :root {
+      --bg: #f3f7f8;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #475569;
+      --line: #dbe5e8;
+      --ok: #15803d;
+      --warn: #b45309;
+      --info: #0369a1;
+      --soft: #ecfeff;
+      --radius: 14px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #e6f4f1 0%, var(--bg) 34%);
+      color: var(--text);
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      min-height: 100dvh;
+    }
+
+    .wrap {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 14px 12px 24px;
+    }
+
+    .top {
+      background: #0f766e;
+      color: #fff;
+      border-radius: var(--radius);
+      padding: 14px;
+      box-shadow: 0 10px 20px rgba(2, 44, 34, 0.15);
+    }
+
+    .top h1 { margin: 0 0 4px; font-size: 20px; }
+    .meta { margin: 0; color: #d1fae5; font-size: 13px; }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+
+    button, .link {
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .btn-light { background: #e2e8f0; color: #0f172a; }
+    .btn-install { background: #fef3c7; color: #92400e; display: none; }
+    .btn-alert { background: #dbeafe; color: #1e3a8a; }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 12px;
+      margin-top: 10px;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+    }
+
+    .os-title { margin: 0; font-size: 16px; }
+    .os-time { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+
+    .status {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .status.agendado { background: var(--info); }
+    .status.atendimento { background: var(--warn); }
+    .status.finalizado { background: var(--ok); }
+    .status.info { background: #6366f1; }
+
+    .line { margin-top: 8px; font-size: 14px; color: #1e293b; }
+    .line strong { color: #0f172a; }
+
+    .section {
+      margin-top: 10px;
+      border: 1px dashed var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      background: var(--soft);
+    }
+
+    .section h3 {
+      margin: 0 0 8px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      color: #0f766e;
+    }
+
+    .checks {
+      display: grid;
+      gap: 6px;
+      font-size: 14px;
+    }
+
+    .checks label {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .sign {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 8px;
+      font-size: 14px;
+      margin-top: 6px;
+    }
+
+    .sig-wrap {
+      margin-top: 8px;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      border-radius: 8px;
+      padding: 6px;
+    }
+
+    .sig-pad {
+      width: 100%;
+      height: 110px;
+      border: 1px dashed #94a3b8;
+      border-radius: 6px;
+      display: block;
+      touch-action: none;
+      background: #fff;
+    }
+
+    .sig-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .btn-clear {
+      background: #cbd5e1;
+      color: #0f172a;
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+    }
+
+    .os-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .btn-save { background: #0f766e; color: #fff; }
+    .btn-start { background: #f59e0b; color: #fff; }
+    .btn-end { background: #16a34a; color: #fff; }
+    .btn-map { background: #2563eb; color: #fff; }
+
+    .empty {
+      margin-top: 14px;
+      text-align: center;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .peca-search {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 8px;
+      font-size: 14px;
+      margin-top: 6px;
+    }
+
+    .result-box {
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      margin-top: 6px;
+      background: #fff;
+      max-height: 170px;
+      overflow: auto;
+      display: none;
+    }
+
+    .result-item {
+      padding: 8px;
+      border-bottom: 1px solid #e2e8f0;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .result-item:last-child { border-bottom: 0; }
+    .result-item:hover { background: #f8fafc; }
+
+    .peca-row {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .qtd-input {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 8px;
+      font-size: 14px;
+    }
+
+    .btn-add-item {
+      background: #0f766e;
+      color: #fff;
+      margin-top: 8px;
+    }
+
+    .itens-list {
+      margin-top: 8px;
+      border: 1px solid #dbe5e8;
+      border-radius: 8px;
+      background: #fff;
+      padding: 8px;
+      font-size: 13px;
+    }
+
+    .itens-list table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .itens-list th, .itens-list td {
+      padding: 5px;
+      border-bottom: 1px solid #e2e8f0;
+      text-align: left;
+      font-size: 12px;
+    }
+
+    .itens-list tr:last-child td { border-bottom: 0; }
+
+    .muted-small {
+      color: #64748b;
+      font-size: 12px;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <h1>Agenda do Tecnico</h1>
+      <p class="meta" id="meta">Carregando...</p>
+      <div class="actions">
+        <button class="btn-light" id="btnRefresh" type="button">Atualizar</button>
+        <button class="btn-alert" id="btnAlert" type="button">Ativar Alertas</button>
+        <button class="btn-install" id="btnInstall" type="button">Instalar App</button>
+        <a class="link btn-light" href="/logout">Sair</a>
+      </div>
+    </div>
+
+    <div id="lista"></div>
+    <div id="vazio" class="empty" style="display:none;">Nenhum atendimento para hoje.</div>
+  </div>
+
+  <script>
+    let deferredPrompt = null;
+    const produtoSelecionadoPorOs = {};
+    let idsAgendaAnterior = [];
+    let primeiraCargaAgenda = true;
+
+    function esc(str) {
+      if (!str) return "";
+      return String(str)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function statusClass(status) {
+      if (status === "Finalizado") return "finalizado";
+      if (status === "Aguardando Conferencia") return "info";
+      if (status === "Em Atendimento") return "atendimento";
+      return "agendado";
+    }
+
+    function makeEndereco(item) {
+      const parts = [item.endereco, item.numero, item.bairro, item.cidade].filter(Boolean);
+      return parts.join(" ").trim();
+    }
+
+    function moeda(v) {
+      return Number(v || 0).toFixed(2);
+    }
+
+    function tocarAlerta() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        gain.gain.setValueAtTime(0.001, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.26);
+      } catch (_) {}
+    }
+
+    function avisarNovoServico(quantidade) {
+      const msg = quantidade === 1
+        ? "Novo serviço chegou na agenda."
+        : `${quantidade} novos serviços chegaram na agenda.`;
+      alert(msg);
+      tocarAlerta();
+
+      if ("Notification" in window && Notification.permission === "granted") {
+        new Notification("CentralMarket - Novo Serviço", { body: msg });
+      }
+    }
+
+    async function atualizarStatus(osId, status) {
+      const r = await fetch(`/api/tecnico/ordem/${osId}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status })
+      });
+      const j = await r.json();
+      if (!r.ok || !j.ok) {
+        alert(j.erro || "Erro ao atualizar status");
+        return;
+      }
+      await carregarAgenda();
+    }
+
+    async function iniciarAtendimento(osId) {
+      const r = await fetch(`/api/tecnico/ordem/${osId}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Em Atendimento" })
+      });
+      const j = await r.json();
+      if (!r.ok || !j.ok) {
+        alert(j.erro || "Erro ao iniciar atendimento");
+        return;
+      }
+      window.location.href = `/app_tecnico/atendimento/${osId}`;
+    }
+
+    async function salvarEvidencias(osId) {
+      const fd = new FormData();
+      fd.append("assinatura_nome", document.getElementById(`assinatura_${osId}`).value || "");
+      fd.append("assinatura_imagem", document.getElementById(`assinatura_img_${osId}`).value || "");
+
+      const r = await fetch(`/api/tecnico/ordem/${osId}/evidencias`, { method: "POST", body: fd });
+      const j = await r.json();
+      if (!r.ok || !j.ok) {
+        alert(j.erro || "Erro ao salvar evidencias");
+        return;
+      }
+      alert("Evidencias salvas.");
+      await carregarAgenda();
+    }
+
+    async function buscarPeca(osId) {
+      const input = document.getElementById(`peca_busca_${osId}`);
+      const box = document.getElementById(`peca_result_${osId}`);
+      const termo = (input.value || "").trim();
+      if (termo.length < 2) {
+        box.style.display = "none";
+        box.innerHTML = "";
+        return;
+      }
+
+      const r = await fetch(`/buscar_produto?q=${encodeURIComponent(termo)}`);
+      const produtos = await r.json();
+      const lista = (produtos || []).filter(p => String(p.tipo || "produto").toLowerCase() !== "servico");
+      if (!lista.length) {
+        box.style.display = "block";
+        box.innerHTML = `<div class="result-item">Nenhuma peça encontrada.</div>`;
+        return;
+      }
+
+      box.style.display = "block";
+      box.innerHTML = "";
+      lista.forEach(p => {
+        const div = document.createElement("div");
+        div.className = "result-item";
+        div.textContent = `${p.nome} | R$ ${moeda(p.preco)} | Est: ${p.estoque}`;
+        div.onclick = () => selecionarPeca(osId, p);
+        box.appendChild(div);
+      });
+    }
+
+    function selecionarPeca(osId, p) {
+      produtoSelecionadoPorOs[osId] = p;
+      document.getElementById(`peca_busca_${osId}`).value = `${p.nome} (R$ ${moeda(p.preco)})`;
+      const box = document.getElementById(`peca_result_${osId}`);
+      box.style.display = "none";
+      box.innerHTML = "";
+    }
+
+    async function adicionarPeca(osId) {
+      const p = produtoSelecionadoPorOs[osId];
+      if (!p || !p.id) {
+        alert("Selecione uma peça na busca.");
+        return;
+      }
+
+      const qtd = Number(document.getElementById(`peca_qtd_${osId}`).value || 0);
+      if (qtd <= 0) {
+        alert("Informe uma quantidade válida.");
+        return;
+      }
+
+      const r = await fetch(`/api/tecnico/ordem/${osId}/adicionar_item`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ produto_id: p.id, quantidade: qtd })
+      });
+      const j = await r.json();
+      if (!r.ok || !j.ok) {
+        alert(j.erro || "Erro ao adicionar peça.");
+        return;
+      }
+
+      document.getElementById(`peca_qtd_${osId}`).value = "1";
+      document.getElementById(`peca_busca_${osId}`).value = "";
+      delete produtoSelecionadoPorOs[osId];
+      await carregarAgenda();
+    }
+
+    function initSignaturePad(osId) {
+      const canvas = document.getElementById(`pad_${osId}`);
+      const hidden = document.getElementById(`assinatura_img_${osId}`);
+      if (!canvas || !hidden) return;
+
+      const ctx = canvas.getContext("2d");
+      let drawing = false;
+
+      function pos(ev) {
+        const rect = canvas.getBoundingClientRect();
+        const p = ev.touches ? ev.touches[0] : ev;
+        return { x: p.clientX - rect.left, y: p.clientY - rect.top };
+      }
+
+      function start(ev) {
+        drawing = true;
+        const p = pos(ev);
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ev.preventDefault();
+      }
+
+      function move(ev) {
+        if (!drawing) return;
+        const p = pos(ev);
+        ctx.lineWidth = 2;
+        ctx.lineCap = "round";
+        ctx.strokeStyle = "#0f172a";
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+        ev.preventDefault();
+      }
+
+      function end() {
+        if (!drawing) return;
+        drawing = false;
+        hidden.value = canvas.toDataURL("image/png");
+      }
+
+      canvas.addEventListener("mousedown", start);
+      canvas.addEventListener("mousemove", move);
+      window.addEventListener("mouseup", end);
+      canvas.addEventListener("touchstart", start, { passive: false });
+      canvas.addEventListener("touchmove", move, { passive: false });
+      canvas.addEventListener("touchend", end);
+
+      const btn = document.getElementById(`clear_${osId}`);
+      if (btn) {
+        btn.onclick = function () {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          hidden.value = "";
+        };
+      }
+    }
+
+    function cardHtml(item) {
+      const endereco = makeEndereco(item);
+      const maps = endereco
+        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(endereco)}`
+        : "";
+      let botoes = `<button class="btn-save" type="button" onclick="salvarEvidencias(${item.id})">Salvar Evidencias</button>`;
+      if (item.status === "Agendado") {
+        botoes += `<button class="btn-start" type="button" onclick="iniciarAtendimento(${item.id})">Iniciar</button>`;
+      } else if (item.status === "Em Atendimento") {
+        botoes += `<a class="link btn-start" href="/app_tecnico/atendimento/${item.id}">Abrir Atendimento</a>`;
+      }
+      if (maps) {
+        botoes += `<a class="link btn-map" target="_blank" rel="noopener" href="${maps}">Mapa</a>`;
+      }
+
+      const podeAdicionarPeca = item.status === "Agendado" || item.status === "Em Atendimento";
+      const itens = item.itens || [];
+      let itensHtml = `<div class="muted-small">Nenhuma peça adicionada.</div>`;
+      if (itens.length) {
+        const totalItens = itens.reduce((s, it) => s + Number(it.subtotal || 0), 0);
+        itensHtml = `
+          <div class="itens-list">
+            <table>
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Qtd</th>
+                  <th>Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itens.map(it => `
+                  <tr>
+                    <td>${esc(it.descricao || "")}</td>
+                    <td>${esc(it.quantidade || 0)}</td>
+                    <td>R$ ${moeda(it.subtotal)}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+            <div class="muted-small"><strong>Total peças:</strong> R$ ${moeda(totalItens)}</div>
+          </div>
+        `;
+      }
+
+      return `
+        <article class="card">
+          <h2 class="os-title">OS #${item.id} - ${esc(item.servico_nome || "Servico")}</h2>
+          <p class="os-time">${esc(item.hora || "Sem horario")} - ${esc(item.data_agendamento || "")}</p>
+          <span class="status ${statusClass(item.status)}">${esc(item.status || "Agendado")}</span>
+
+          <div class="line"><strong>Cliente:</strong> ${esc(item.cliente || "Nao informado")}</div>
+          <div class="line"><strong>Telefone:</strong> ${esc(item.telefone || "-")}</div>
+          <div class="line"><strong>Endereco:</strong> ${esc(endereco || "-")}</div>
+          <div class="line"><strong>Defeito:</strong> ${esc(item.defeito_reclamado || "-")}</div>
+          <div class="line"><strong>Produto:</strong> ${esc(item.produto_defeito || "-")}</div>
+          <div class="line"><strong>Obs:</strong> ${esc(item.observacao || "-")}</div>
+          <div class="line"><strong>Pedido Caixa:</strong> ${item.movimento_id ? `#${item.movimento_id}` : "-"}</div>
+
+          <div class="section">
+            <h3>Evidencias do Atendimento</h3>
+            <input class="sign" id="assinatura_${item.id}" type="text" value="${esc(item.assinatura_nome || "")}" placeholder="Assinatura (nome do cliente)">
+            <input id="assinatura_img_${item.id}" type="hidden" value="">
+            <div class="sig-wrap">
+              <canvas id="pad_${item.id}" class="sig-pad" width="600" height="220"></canvas>
+              <div class="sig-actions">
+                <button id="clear_${item.id}" class="btn-clear" type="button">Limpar Assinatura</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>Peças Utilizadas</h3>
+            ${podeAdicionarPeca ? `
+              <input class="peca-search" id="peca_busca_${item.id}" type="text" placeholder="Buscar peça por nome/código" oninput="buscarPeca(${item.id})" autocomplete="off">
+              <div class="result-box" id="peca_result_${item.id}"></div>
+              <div class="peca-row">
+                <div>
+                  <label class="muted-small">Quantidade</label>
+                  <input class="qtd-input" id="peca_qtd_${item.id}" type="number" min="1" value="1">
+                </div>
+              </div>
+              <button class="btn-add-item" type="button" onclick="adicionarPeca(${item.id})">Adicionar Peça</button>
+            ` : `
+              <div class="muted-small">Adição de peças bloqueada para OS já finalizada/conferência.</div>
+            `}
+            ${itensHtml}
+          </div>
+
+          <div class="os-actions">${botoes}</div>
+        </article>
+      `;
+    }
+
+    async function carregarAgenda(opcoes = {}) {
+      const somenteVerificar = !!opcoes.somenteVerificar;
+      const lista = document.getElementById("lista");
+      const vazio = document.getElementById("vazio");
+      if (!somenteVerificar) {
+        lista.innerHTML = "";
+        vazio.style.display = "none";
+      }
+
+      try {
+        const r = await fetch("/api/tecnico/agenda_hoje", { cache: "no-store" });
+        const j = await r.json();
+
+        if (!r.ok || !j.ok) {
+          document.getElementById("meta").textContent = j.erro || "Erro ao carregar agenda.";
+          return;
+        }
+
+        document.getElementById("meta").textContent = `Data: ${j.hoje} | Total: ${j.ordens.length}`;
+
+        if (!j.ordens.length) {
+          if (!somenteVerificar) {
+            vazio.style.display = "block";
+          }
+          idsAgendaAnterior = [];
+          primeiraCargaAgenda = false;
+          return;
+        }
+
+        const idsAtual = j.ordens.map(o => o.id);
+        if (!primeiraCargaAgenda) {
+          const novos = idsAtual.filter(id => !idsAgendaAnterior.includes(id));
+          if (novos.length > 0) {
+            avisarNovoServico(novos.length);
+          }
+        }
+
+        if (!somenteVerificar) {
+          lista.innerHTML = j.ordens.map(cardHtml).join("");
+          j.ordens.forEach((o) => initSignaturePad(o.id));
+        }
+        idsAgendaAnterior = idsAtual;
+        primeiraCargaAgenda = false;
+      } catch (e) {
+        if (!somenteVerificar) {
+          document.getElementById("meta").textContent = "Sem conexao no momento.";
+        }
+      }
+    }
+
+    document.getElementById("btnRefresh").addEventListener("click", carregarAgenda);
+
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      document.getElementById("btnInstall").style.display = "inline-flex";
+    });
+
+    document.getElementById("btnInstall").addEventListener("click", async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      await deferredPrompt.userChoice;
+      deferredPrompt = null;
+      document.getElementById("btnInstall").style.display = "none";
+    });
+
+    document.getElementById("btnAlert").addEventListener("click", async () => {
+      if (!("Notification" in window)) {
+        alert("Seu navegador não suporta notificações.");
+        return;
+      }
+      if (Notification.permission === "granted") {
+        alert("Alertas já estão ativos.");
+        return;
+      }
+      const p = await Notification.requestPermission();
+      if (p === "granted") {
+        alert("Alertas ativados com sucesso.");
+      } else {
+        alert("Permissão de alerta negada.");
+      }
+    });
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/app_tecnico/sw.js").catch(() => {});
+    }
+
+    setInterval(() => carregarAgenda({ somenteVerificar: true }), 12000);
+    carregarAgenda();
+  </script>
+</body>
+</html>

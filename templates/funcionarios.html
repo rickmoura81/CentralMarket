@@ -89,6 +89,31 @@ background:#e74c3c;
 color:white;
 }
 
+.btn-editar{
+background:#2563eb;
+color:white;
+padding:6px 10px;
+border-radius:4px;
+text-decoration:none;
+font-size:13px;
+}
+
+.btn-excluir{
+background:#dc2626;
+color:white;
+padding:6px 10px;
+border-radius:4px;
+border:none;
+font-size:13px;
+cursor:pointer;
+}
+
+.acao{
+display:flex;
+gap:8px;
+align-items:center;
+}
+
 </style>
 
 </head>
@@ -118,8 +143,17 @@ color:white;
 <option value="Tecnico">Técnico</option>
 <option value="Vendedor">Vendedor</option>
 <option value="Caixa">Caixa</option>
+<option value="Gerente">Gerente</option>
 <option value="Administrador">Administrador</option>
 </select>
+
+<select name="perfil" required>
+<option value="funcionario">Perfil: Funcionário</option>
+<option value="gerente">Perfil: Gerente</option>
+<option value="proprietario">Perfil: Proprietário</option>
+</select>
+
+<input type="password" name="senha" placeholder="Senha de acesso" required>
 
 <input type="text" name="funcao" placeholder="Função">
 
@@ -145,9 +179,11 @@ color:white;
 <tr>
 <th>ID</th>
 <th>Nome</th>
+<th>Perfil</th>
 <th>Cargo</th>
 <th>Telefone</th>
 <th>Status</th>
+<th>Ação</th>
 </tr>
 
 {% for f in funcionarios %}
@@ -158,12 +194,23 @@ color:white;
 
 <td>{{ f.nome }}</td>
 
+<td>{{ f.perfil or "funcionario" }}</td>
+
 <td>{{ f.cargo }}</td>
 
 <td>{{ f.telefone }}</td>
 
 <td>
 <span class="status ativo">Ativo</span>
+</td>
+
+<td>
+<div class="acao">
+<a class="btn-editar" href="/editar_funcionario/{{ f.id }}">Editar</a>
+<form method="POST" action="/excluir_funcionario/{{ f.id }}" onsubmit="return confirm('Excluir funcionário #{{ f.id }}?');">
+<button class="btn-excluir" type="submit">Excluir</button>
+</form>
+</div>
 </td>
 
 </tr>

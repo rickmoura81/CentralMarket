@@ -3,68 +3,465 @@
 <head>
     <title>Caixa</title>
     <meta charset="UTF-8">
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #eef2f7;
+            color: #1f2937;
+        }
+
+        .wrap {
+            max-width: 1180px;
+            margin: 24px auto;
+            padding: 0 16px;
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .topbar h2 {
+            margin: 0;
+            font-size: 24px;
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            border: 0;
+            border-radius: 8px;
+            padding: 10px 14px;
+            cursor: pointer;
+            font-weight: bold;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-danger { background: #c0392b; color: #fff; }
+        .btn-primary { background: #2563eb; color: #fff; }
+        .btn-muted { background: #64748b; color: #fff; }
+
+        .card {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+            padding: 16px;
+        }
+
+        .kpi-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            margin-bottom: 12px;
+        }
+
+        .kpi-title {
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #64748b;
+            margin-bottom: 6px;
+        }
+
+        .kpi-value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .status-line {
+            margin: 0 0 12px;
+            color: #334155;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .section-title {
+            margin: 0 0 10px;
+            font-size: 16px;
+        }
+
+        .bars {
+            display: grid;
+            gap: 8px;
+        }
+
+        .bar-row {
+            display: grid;
+            grid-template-columns: 130px 1fr 80px;
+            gap: 8px;
+            align-items: center;
+            font-size: 13px;
+        }
+
+        .bar-track {
+            width: 100%;
+            background: #e2e8f0;
+            border-radius: 999px;
+            height: 10px;
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #0ea5e9, #2563eb);
+            width: 0%;
+        }
+
+        .line-chart {
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+            height: 170px;
+            padding: 8px;
+            border-radius: 8px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+        }
+
+        .line-col {
+            flex: 1;
+            min-width: 24px;
+            text-align: center;
+            font-size: 11px;
+            color: #475569;
+        }
+
+        .line-bar {
+            width: 100%;
+            background: linear-gradient(180deg, #22c55e, #16a34a);
+            border-radius: 6px 6px 0 0;
+            min-height: 2px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            background: #fff;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        th, td {
+            padding: 10px;
+            border-bottom: 1px solid #e5e7eb;
+            text-align: left;
+        }
+
+        th {
+            background: #f8fafc;
+        }
+
+        #statusCaixa {
+            color: #b91c1c;
+            font-weight: bold;
+            margin: 8px 0 0;
+        }
+
+        .modal-bg {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+        }
+
+        .modal {
+            width: 430px;
+            max-width: 94%;
+            background: #fff;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 10px 24px rgba(0,0,0,0.25);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        @media (max-width: 900px) {
+            .grid-2 { grid-template-columns: 1fr; }
+            .bar-row { grid-template-columns: 110px 1fr 70px; }
+        }
+    </style>
 </head>
 <body>
+<div class="wrap">
 
 {% if caixa %}
-<h2>🟢 Caixa Aberto</h2>
+    <div class="topbar">
+        <h2>Caixa Aberto</h2>
+        <div class="actions">
+            <a href="/caixa_pedidos" class="btn btn-primary">Pedidos Pendentes</a>
+            <a href="/" class="btn btn-muted">Voltar</a>
+            <form id="formFecharCaixa" method="POST" action="/fechar_caixa" style="margin:0;">
+                <button type="button" onclick="abrirModalFechamento()" class="btn btn-danger">Fechar Caixa</button>
+            </form>
+        </div>
+    </div>
 
-<p><strong>Data de abertura:</strong> {{ caixa.data_abertura }}</p>
-<p><strong>Valor inicial:</strong> R$ {{ "%.2f"|format(caixa.valor_inicial) }}</p>
+    <p class="status-line">
+        Abertura: <strong>{{ caixa.data_abertura }}</strong> | Valor inicial: <strong>R$ {{ "%.2f"|format(caixa.valor_inicial) }}</strong>
+    </p>
 
-<hr>
+    <div class="kpi-grid">
+        <div class="card">
+            <div class="kpi-title">Total Vendido</div>
+            <div class="kpi-value">R$ <span id="totalVendas">{{ "%.2f"|format(total_vendas) }}</span></div>
+        </div>
+        <div class="card">
+            <div class="kpi-title">Quantidade de Vendas</div>
+            <div class="kpi-value"><span id="qtdVendas">{{ qtd_vendas }}</span></div>
+        </div>
+        <div class="card">
+            <div class="kpi-title">Ticket Medio</div>
+            <div class="kpi-value">R$ <span id="ticketMedio">{{ "%.2f"|format(ticket_medio) }}</span></div>
+        </div>
+        <div class="card">
+            <div class="kpi-title">Valor Atual em Caixa</div>
+            <div class="kpi-value">R$ <span id="valorAtual">{{ "%.2f"|format(caixa.valor_inicial + total_vendas) }}</span></div>
+        </div>
+        <div class="card">
+            <div class="kpi-title">Pedidos Pendentes</div>
+            <div class="kpi-value">{{ pendentes_qtd }}</div>
+            <div style="font-size:13px;color:#64748b;">R$ {{ "%.2f"|format(pendentes_total) }}</div>
+        </div>
+    </div>
 
-<p><strong>Total vendido:</strong>
-R$ <span id="totalVendas">{{ "%.2f"|format(total_vendas) }}</span></p>
+    <div class="grid-2">
+        <div class="card">
+            <h3 class="section-title">Vendas por Forma de Pagamento</h3>
+            <div id="formasBars" class="bars"></div>
+        </div>
 
-<p><strong>Quantidade de vendas:</strong>
-<span id="qtdVendas">{{ qtd_vendas }}</span></p>
+        <div class="card">
+            <h3 class="section-title">Evolucao por Hora</h3>
+            <div id="hourChart" class="line-chart"></div>
+        </div>
+    </div>
 
-<p><strong>Valor atual no caixa:</strong>
-R$ <span id="valorAtual">
-{{ "%.2f"|format(caixa.valor_inicial + total_vendas) }}
-</span></p>
-
-<br>
-
-<form method="POST" action="/fechar_caixa">
-    <button type="submit">Fechar Caixa</button>
-</form>
+    <div class="card">
+        <h3 class="section-title">Ultimas Vendas</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Pedido</th>
+                    <th>Data</th>
+                    <th>Forma</th>
+                    <th>Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if ultimas_vendas %}
+                    {% for v in ultimas_vendas %}
+                    <tr>
+                        <td>#{{ v.id }}</td>
+                        <td>{{ v.data }}</td>
+                        <td>{{ v.forma }}</td>
+                        <td>R$ {{ "%.2f"|format(v.total) }}</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="4">Nenhuma venda paga neste caixa ainda.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
 
 {% else %}
-<h2>🔴 Caixa fechado</h2>
+    <div class="card">
+        <h2>Caixa Fechado</h2>
+        <p>Abra o caixa para acompanhar os indicadores e graficos em tempo real.</p>
 
-<form method="POST" action="/abrir_caixa">
-    <input type="number" step="0.01" name="valor_inicial" placeholder="Valor inicial" required>
-    <button type="submit">Abrir Caixa</button>
-</form>
+        <form method="POST" action="/abrir_caixa" style="max-width:320px;">
+            <input type="number" step="0.01" min="0" name="valor_inicial" placeholder="Valor inicial" required>
+            <button type="submit" class="btn btn-primary">Abrir Caixa</button>
+        </form>
+
+        <a href="/" class="btn btn-muted">Voltar</a>
+    </div>
+
+    {% if ultimo_fechamento %}
+    <div class="card" style="margin-top:12px;">
+        <h3 class="section-title">Ultimo Fechamento</h3>
+        <p class="status-line" style="margin-bottom:6px;">
+            Caixa #<strong>{{ ultimo_fechamento.id }}</strong> |
+            Abertura: <strong>{{ ultimo_fechamento.data_abertura }}</strong> |
+            Fechamento: <strong>{{ ultimo_fechamento.data_fechamento }}</strong>
+        </p>
+        <p class="status-line" style="margin-bottom:12px;">
+            Valor inicial: <strong>R$ {{ "%.2f"|format(ultimo_fechamento.valor_inicial) }}</strong> |
+            Valor final: <strong>R$ {{ "%.2f"|format(ultimo_fechamento.valor_final) }}</strong>
+        </p>
+        <a class="btn btn-primary" href="/imprimir_fechamento_caixa/{{ ultimo_fechamento.id }}" target="_blank">Imprimir Ultimo Fechamento</a>
+    </div>
+    {% endif %}
 {% endif %}
 
-<hr>
-<a href="/">⬅ Voltar</a>
+<p id="statusCaixa"></p>
+
+</div>
+
+<div id="modalFechamento" class="modal-bg">
+    <div class="modal">
+        <h3 style="margin:0 0 10px;">Confirmar Fechamento do Caixa</h3>
+        <div style="font-size:14px;line-height:1.7;">
+            <div>Valor inicial: <strong>R$ {{ "%.2f"|format(caixa.valor_inicial if caixa else 0) }}</strong></div>
+            <div>Total vendido: <strong>R$ <span id="mTotalVendas">{{ "%.2f"|format(total_vendas if caixa else 0) }}</span></strong></div>
+            <div>Ticket medio: <strong>R$ <span id="mTicket">{{ "%.2f"|format(ticket_medio if caixa else 0) }}</span></strong></div>
+            <div>Valor final esperado: <strong>R$ <span id="mValorFinal">{{ "%.2f"|format((caixa.valor_inicial + total_vendas) if caixa else 0) }}</span></strong></div>
+        </div>
+        <div class="modal-actions">
+            <button type="button" class="btn btn-muted" onclick="fecharModalFechamento()">Voltar</button>
+            <button type="button" class="btn btn-danger" onclick="confirmarFechamento()">Confirmar Fechamento</button>
+        </div>
+    </div>
+</div>
 
 <script>
+const valorInicial = {{ caixa.valor_inicial if caixa else 0 }};
+let formasData = {{ formas_pagamento|tojson if caixa else {} }};
+let horasData = {{ vendas_por_hora|tojson if caixa else [] }};
+
+function moeda(valor) {
+    return Number(valor || 0).toFixed(2);
+}
+
+function renderFormas(data) {
+    const box = document.getElementById("formasBars");
+    if (!box) return;
+
+    const entries = Object.entries(data || {});
+    if (entries.length === 0) {
+        box.innerHTML = "<div style='font-size:13px;color:#64748b;'>Sem vendas para exibir.</div>";
+        return;
+    }
+
+    const max = Math.max(...entries.map(e => Number(e[1] || 0)), 1);
+
+    box.innerHTML = entries
+        .sort((a, b) => Number(b[1]) - Number(a[1]))
+        .map(([forma, total]) => {
+            const pct = (Number(total) / max) * 100;
+            return `
+                <div class="bar-row">
+                    <div>${forma}</div>
+                    <div class="bar-track"><div class="bar-fill" style="width:${pct.toFixed(1)}%"></div></div>
+                    <div>R$ ${moeda(total)}</div>
+                </div>
+            `;
+        })
+        .join("");
+}
+
+function renderHoras(data) {
+    const chart = document.getElementById("hourChart");
+    if (!chart) return;
+
+    const points = (data || []).map(p => ({
+        hora: p.hora,
+        total: Number(p.total || 0)
+    }));
+
+    if (points.length === 0) {
+        chart.innerHTML = "<div style='font-size:13px;color:#64748b;'>Sem vendas por hora para exibir.</div>";
+        return;
+    }
+
+    const max = Math.max(...points.map(p => p.total), 1);
+
+    chart.innerHTML = points.map(p => {
+        const height = Math.max(4, (p.total / max) * 130);
+        return `
+            <div class="line-col" title="${p.hora}h - R$ ${moeda(p.total)}">
+                <div class="line-bar" style="height:${height.toFixed(0)}px"></div>
+                <div>${p.hora}h</div>
+            </div>
+        `;
+    }).join("");
+}
+
 function atualizarCaixa() {
+    const totalEl = document.getElementById("totalVendas");
+    const qtdEl = document.getElementById("qtdVendas");
+    const valorEl = document.getElementById("valorAtual");
+    const ticketEl = document.getElementById("ticketMedio");
+    const statusEl = document.getElementById("statusCaixa");
+
+    if (!totalEl || !qtdEl || !valorEl || !ticketEl) return;
+
     fetch("/caixa_total")
-    .then(res => res.json())
+    .then(res => {
+        if (!res.ok) throw new Error("Falha ao buscar dados do caixa");
+        return res.json();
+    })
     .then(data => {
+        const total = Number(data.total || 0);
+        const vendas = parseInt(data.vendas || 0, 10);
+        const ticket = Number(data.ticket_medio || 0);
 
-        document.getElementById("totalVendas").innerText =
-            parseFloat(data.total).toFixed(2);
+        totalEl.innerText = moeda(total);
+        qtdEl.innerText = vendas;
+        ticketEl.innerText = moeda(ticket);
+        valorEl.innerText = moeda(valorInicial + total);
 
-        document.getElementById("qtdVendas").innerText =
-            data.vendas;
+        const mTotal = document.getElementById("mTotalVendas");
+        const mTicket = document.getElementById("mTicket");
+        const mFinal = document.getElementById("mValorFinal");
+        if (mTotal) mTotal.innerText = moeda(total);
+        if (mTicket) mTicket.innerText = moeda(ticket);
+        if (mFinal) mFinal.innerText = moeda(valorInicial + total);
 
-        const valorInicial = {{ caixa.valor_inicial if caixa else 0 }};
-        const atual = valorInicial + parseFloat(data.total);
+        formasData = data.formas_pagamento || {};
+        horasData = data.vendas_por_hora || [];
+        renderFormas(formasData);
+        renderHoras(horasData);
 
-        document.getElementById("valorAtual").innerText =
-            atual.toFixed(2);
+        if (statusEl) statusEl.innerText = "";
+    })
+    .catch(() => {
+        if (statusEl) statusEl.innerText = "Nao foi possivel atualizar o caixa agora.";
     });
 }
 
-// atualiza automaticamente a cada 2 segundos
-setInterval(atualizarCaixa, 4000);
+function abrirModalFechamento() {
+    const modal = document.getElementById("modalFechamento");
+    if (modal) modal.style.display = "flex";
+}
+
+function fecharModalFechamento() {
+    const modal = document.getElementById("modalFechamento");
+    if (modal) modal.style.display = "none";
+}
+
+function confirmarFechamento() {
+    const form = document.getElementById("formFecharCaixa");
+    if (form) form.submit();
+}
+
+renderFormas(formasData);
+renderHoras(horasData);
+atualizarCaixa();
+setInterval(atualizarCaixa, 5000);
 </script>
 
 </body>

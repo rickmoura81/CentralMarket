@@ -1,22 +1,889 @@
-from flask import Flask, render_template, request, redirect, jsonify
+from flask import Flask, render_template, request, redirect, jsonify, session, url_for, send_from_directory
 from banco import criar_tabelas, conectar
 from datetime import datetime
 import sqlite3
+import os
+import uuid
+import base64
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "centralmarket-dev-key-change")
+
+ROLE_LEVEL = {
+    "funcionario": 1,
+    "gerente": 2,
+    "proprietario": 3
+}
+
+GERENTE_ENDPOINTS = {
+    "abrir_caixa",
+    "fechar_caixa",
+    "tela_caixa",
+    "caixa_pedidos",
+    "pagar_pedido",
+    "cancelar_pedido",
+    "painel_caixa",
+    "categorias",
+    "editar_categoria",
+    "fornecedores",
+    "editar_fornecedor",
+    "excluir_fornecedor",
+    "produtos",
+    "editar",
+}
+
+PROPRIETARIO_ENDPOINTS = {
+    "funcionarios",
+    "editar_funcionario",
+    "excluir_funcionario",
+    "loja_config",
+    "config_descontos",
+}
+
+AUTH_PUBLIC_ENDPOINTS = {
+    "login",
+    "logout",
+    "static",
+    "app_tecnico_manifest",
+    "app_tecnico_sw",
+}
+
+AUTH_SCHEMA_READY = False
+OS_MOBILE_SCHEMA_READY = False
+
+UPLOAD_OS_DIR = os.path.join("static", "uploads_os")
 
 def get_db():
-    conn = sqlite3.connect("database.db")
+    conn = sqlite3.connect("database.db", timeout=10)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def ensure_movimentos_cancelamento_columns():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA table_info(movimentos)")
+    cols = {c["name"] for c in cursor.fetchall()}
+
+    if "motivo_cancelamento" not in cols:
+        cursor.execute("ALTER TABLE movimentos ADD COLUMN motivo_cancelamento TEXT")
+    if "data_cancelamento" not in cols:
+        cursor.execute("ALTER TABLE movimentos ADD COLUMN data_cancelamento TEXT")
+
+    conn.commit()
+    conn.close()
+
+
+def ensure_movimentos_desconto_columns():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA table_info(movimentos)")
+    cols = {c["name"] for c in cursor.fetchall()}
+
+    if "desconto_valor" not in cols:
+        cursor.execute("ALTER TABLE movimentos ADD COLUMN desconto_valor REAL DEFAULT 0")
+    if "desconto_tipo" not in cols:
+        cursor.execute("ALTER TABLE movimentos ADD COLUMN desconto_tipo TEXT")
+    if "autorizador_id" not in cols:
+        cursor.execute("ALTER TABLE movimentos ADD COLUMN autorizador_id INTEGER")
+
+    conn.commit()
+    conn.close()
+
+
+def ensure_movimentos_troco_columns():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA table_info(movimentos)")
+    cols = {c["name"] for c in cursor.fetchall()}
+    if "valor_recebido" not in cols:
+        cursor.execute("ALTER TABLE movimentos ADD COLUMN valor_recebido REAL DEFAULT 0")
+    if "troco" not in cols:
+        cursor.execute("ALTER TABLE movimentos ADD COLUMN troco REAL DEFAULT 0")
+    conn.commit()
+    conn.close()
+
+
+def ensure_desconto_config_table():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS desconto_config (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            desconto_livre_percent REAL DEFAULT 0,
+            desconto_livre_valor REAL DEFAULT 0,
+            limite_funcionario_percent REAL DEFAULT 5,
+            limite_funcionario_valor REAL DEFAULT 50,
+            limite_gerente_percent REAL DEFAULT 15,
+            limite_gerente_valor REAL DEFAULT 200,
+            limite_proprietario_percent REAL DEFAULT 100,
+            limite_proprietario_valor REAL DEFAULT 999999
+        )
+    """)
+    cursor.execute("PRAGMA table_info(desconto_config)")
+    cols = {c["name"] for c in cursor.fetchall()}
+    if "limite_funcionario_percent" not in cols:
+        cursor.execute("ALTER TABLE desconto_config ADD COLUMN limite_funcionario_percent REAL DEFAULT 5")
+    if "limite_funcionario_valor" not in cols:
+        cursor.execute("ALTER TABLE desconto_config ADD COLUMN limite_funcionario_valor REAL DEFAULT 50")
+
+    cursor.execute("SELECT COUNT(*) FROM desconto_config")
+    total = cursor.fetchone()[0]
+    if total == 0:
+        cursor.execute("""
+            INSERT INTO desconto_config (
+                desconto_livre_percent, desconto_livre_valor,
+                limite_funcionario_percent, limite_funcionario_valor,
+                limite_gerente_percent, limite_gerente_valor,
+                limite_proprietario_percent, limite_proprietario_valor
+            ) VALUES (0, 0, 5, 50, 15, 200, 100, 999999)
+        """)
+    conn.commit()
+    conn.close()
+
+
+def get_desconto_config(cursor):
+    cursor.execute("SELECT * FROM desconto_config WHERE id=1")
+    cfg = cursor.fetchone()
+    if not cfg:
+        return {
+            "desconto_livre_percent": 0.0,
+            "desconto_livre_valor": 0.0,
+            "limite_funcionario_percent": 5.0,
+            "limite_funcionario_valor": 50.0,
+            "limite_gerente_percent": 15.0,
+            "limite_gerente_valor": 200.0,
+            "limite_proprietario_percent": 100.0,
+            "limite_proprietario_valor": 999999.0,
+        }
+    return cfg
+
+
+def ensure_loja_config_table():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS loja_config (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome_fantasia TEXT,
+            razao_social TEXT,
+            cnpj TEXT,
+            telefone TEXT,
+            endereco TEXT,
+            numero TEXT,
+            bairro TEXT,
+            cidade TEXT,
+            mensagem_cupom TEXT
+        )
+    """)
+
+    cursor.execute("SELECT COUNT(*) FROM loja_config")
+    total = cursor.fetchone()[0]
+    if total == 0:
+        cursor.execute("""
+            INSERT INTO loja_config (
+                nome_fantasia, razao_social, cnpj, telefone,
+                endereco, numero, bairro, cidade, mensagem_cupom
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            "Sua Loja",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "Obrigado pela preferencia!"
+        ))
+
+    conn.commit()
+    conn.close()
+
+
+def ensure_funcionarios_auth_columns():
+    global AUTH_SCHEMA_READY
+    if AUTH_SCHEMA_READY:
+        return
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA table_info(funcionarios)")
+    cols = {c["name"] for c in cursor.fetchall()}
+
+    if "senha_hash" not in cols:
+        cursor.execute("ALTER TABLE funcionarios ADD COLUMN senha_hash TEXT")
+    if "perfil" not in cols:
+        cursor.execute("ALTER TABLE funcionarios ADD COLUMN perfil TEXT DEFAULT 'funcionario'")
+
+    cursor.execute("""
+        UPDATE funcionarios
+        SET perfil = CASE
+            WHEN LOWER(COALESCE(cargo, '')) IN ('administrador', 'proprietario') THEN 'proprietario'
+            WHEN LOWER(COALESCE(cargo, '')) = 'gerente' THEN 'gerente'
+            ELSE 'funcionario'
+        END
+        WHERE perfil IS NULL OR TRIM(perfil) = ''
+    """)
+
+    cursor.execute("SELECT COUNT(*) FROM funcionarios WHERE perfil='proprietario'")
+    total_prop = cursor.fetchone()[0]
+
+    if total_prop == 0:
+        cursor.execute("""
+            INSERT INTO funcionarios
+            (nome, cpf, cargo, funcao, status, senha_hash, perfil)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            "Proprietario Master",
+            "00000000000",
+            "Administrador",
+            "Sistema",
+            "Ativo",
+            generate_password_hash("admin123"),
+            "proprietario"
+        ))
+
+    conn.commit()
+    conn.close()
+    AUTH_SCHEMA_READY = True
+
+
+def ensure_ordem_servico_mobile_columns():
+    global OS_MOBILE_SCHEMA_READY
+    if OS_MOBILE_SCHEMA_READY:
+        return
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA table_info(ordem_servico)")
+    cols = {c["name"] for c in cursor.fetchall()}
+
+    if "checklist_json" not in cols:
+        cursor.execute("ALTER TABLE ordem_servico ADD COLUMN checklist_json TEXT")
+    if "assinatura_nome" not in cols:
+        cursor.execute("ALTER TABLE ordem_servico ADD COLUMN assinatura_nome TEXT")
+    if "assinatura_data" not in cols:
+        cursor.execute("ALTER TABLE ordem_servico ADD COLUMN assinatura_data TEXT")
+    if "assinatura_imagem" not in cols:
+        cursor.execute("ALTER TABLE ordem_servico ADD COLUMN assinatura_imagem TEXT")
+    if "movimento_id" not in cols:
+        cursor.execute("ALTER TABLE ordem_servico ADD COLUMN movimento_id INTEGER")
+    if "foto_inicio" not in cols:
+        cursor.execute("ALTER TABLE ordem_servico ADD COLUMN foto_inicio TEXT")
+    if "foto_fim" not in cols:
+        cursor.execute("ALTER TABLE ordem_servico ADD COLUMN foto_fim TEXT")
+
+    conn.commit()
+    conn.close()
+    os.makedirs(UPLOAD_OS_DIR, exist_ok=True)
+    OS_MOBILE_SCHEMA_READY = True
+
+
+def nivel_usuario():
+    role = (session.get("user_role") or "funcionario").lower()
+    return ROLE_LEVEL.get(role, 1)
+
+
+def resposta_acesso_negado(msg):
+    wants_json = request.is_json or "application/json" in (request.headers.get("Accept") or "")
+    if wants_json:
+        return jsonify({"ok": False, "erro": msg}), 403
+    return msg, 403
+
+
+@app.before_request
+def validar_acesso():
+    ensure_funcionarios_auth_columns()
+
+    endpoint = request.endpoint or ""
+    if endpoint in AUTH_PUBLIC_ENDPOINTS:
+        return None
+    if endpoint.startswith("static"):
+        return None
+
+    if "user_id" not in session:
+        return redirect(url_for("login", next=request.path))
+
+    if endpoint in PROPRIETARIO_ENDPOINTS and (session.get("user_role") != "proprietario"):
+        return resposta_acesso_negado("Acesso permitido apenas para proprietario.")
+
+    if endpoint in GERENTE_ENDPOINTS and nivel_usuario() < ROLE_LEVEL["gerente"]:
+        return resposta_acesso_negado("Acesso permitido para gerente ou proprietario.")
+
+    return None
+
+
+@app.context_processor
+def injetar_usuario():
+    return {
+        "usuario_logado": session.get("user_nome"),
+        "perfil_logado": session.get("user_role"),
+    }
 
 # =================================================
 # rota dashboard
 # =================================================
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    ensure_funcionarios_auth_columns()
+    erro = ""
+
+    if request.method == "POST":
+        cpf = "".join(ch for ch in (request.form.get("cpf") or "") if ch.isdigit())
+        senha = request.form.get("senha") or ""
+
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, nome, senha_hash, perfil, status
+            FROM funcionarios
+            WHERE cpf=?
+            LIMIT 1
+        """, (cpf,))
+        user = cursor.fetchone()
+        conn.close()
+
+        if not user:
+            erro = "Usuario nao encontrado."
+        elif (user["status"] or "Ativo") != "Ativo":
+            erro = "Usuario inativo."
+        elif not user["senha_hash"] or not check_password_hash(user["senha_hash"], senha):
+            erro = "Senha invalida."
+        else:
+            session.clear()
+            session["user_id"] = user["id"]
+            session["user_nome"] = user["nome"]
+            session["user_role"] = (user["perfil"] or "funcionario").lower()
+
+            prox = request.args.get("next") or "/"
+            if not prox.startswith("/"):
+                prox = "/"
+            return redirect(prox)
+
+    return render_template("login.html", erro=erro)
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect("/login")
+
+
 @app.route("/")
 def index():
     return render_template("dashboard.html")
-#=================================================
+
+
+@app.route("/app_tecnico")
+def app_tecnico():
+    ensure_ordem_servico_mobile_columns()
+    return render_template("app_tecnico.html")
+
+
+@app.route("/app_tecnico/atendimento/<int:os_id>")
+def app_tecnico_atendimento(os_id):
+    ensure_ordem_servico_mobile_columns()
+    return render_template("app_tecnico_atendimento.html", os_id=os_id)
+
+
+@app.route("/app_tecnico/manifest.webmanifest")
+def app_tecnico_manifest():
+    return send_from_directory("static", "manifest_tecnico.webmanifest")
+
+
+@app.route("/app_tecnico/sw.js")
+def app_tecnico_sw():
+    return send_from_directory("static", "sw_tecnico.js")
+
+
+@app.route("/api/tecnico/agenda_hoje")
+def api_tecnico_agenda_hoje():
+    ensure_ordem_servico_mobile_columns()
+    tecnico_id = session.get("user_id")
+    if not tecnico_id:
+        return jsonify({"ok": False, "erro": "Sessao expirada."}), 401
+
+    hoje = datetime.now().strftime("%Y-%m-%d")
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT
+            os.id,
+            os.servico_nome,
+            os.data_agendamento,
+            os.hora,
+            os.status,
+            os.defeito_reclamado,
+            os.produto_defeito,
+            os.observacao,
+            os.checklist_json,
+            os.assinatura_nome,
+            os.assinatura_data,
+            os.assinatura_imagem,
+            os.movimento_id,
+            c.nome AS cliente,
+            c.telefone,
+            c.endereco,
+            c.numero,
+            c.bairro,
+            c.cidade
+        FROM ordem_servico os
+        LEFT JOIN clientes c ON os.cliente_id = c.id
+        WHERE os.tecnico_id = ?
+          AND os.data_agendamento = ?
+        ORDER BY os.hora
+    """, (tecnico_id, hoje))
+
+    ordens = cursor.fetchall()
+
+    itens_por_os = {}
+    if ordens:
+        ids = [o["id"] for o in ordens]
+        placeholders = ",".join(["?"] * len(ids))
+        cursor.execute(f"""
+            SELECT os_id, descricao, quantidade, valor, subtotal
+            FROM itens_ordem_servico
+            WHERE os_id IN ({placeholders})
+            ORDER BY id
+        """, ids)
+        itens_rows = cursor.fetchall()
+        for it in itens_rows:
+            os_id = it["os_id"]
+            if os_id not in itens_por_os:
+                itens_por_os[os_id] = []
+            itens_por_os[os_id].append({
+                "descricao": it["descricao"],
+                "quantidade": it["quantidade"],
+                "valor": float(it["valor"] or 0),
+                "subtotal": float(it["subtotal"] or 0),
+            })
+
+    conn.close()
+
+    return jsonify({
+        "ok": True,
+        "hoje": hoje,
+        "ordens": [
+            {
+                "id": o["id"],
+                "servico_nome": o["servico_nome"],
+                "data_agendamento": o["data_agendamento"],
+                "hora": o["hora"],
+                "status": o["status"],
+                "defeito_reclamado": o["defeito_reclamado"],
+                "produto_defeito": o["produto_defeito"],
+                "observacao": o["observacao"],
+                "checklist_json": o["checklist_json"],
+                "assinatura_nome": o["assinatura_nome"],
+                "assinatura_data": o["assinatura_data"],
+                "assinatura_imagem": o["assinatura_imagem"],
+                "movimento_id": o["movimento_id"],
+                "itens": itens_por_os.get(o["id"], []),
+                "cliente": o["cliente"],
+                "telefone": o["telefone"],
+                "endereco": o["endereco"],
+                "numero": o["numero"],
+                "bairro": o["bairro"],
+                "cidade": o["cidade"],
+            }
+            for o in ordens
+        ]
+    })
+
+
+@app.route("/api/tecnico/ordem/<int:os_id>")
+def api_tecnico_ordem(os_id):
+    ensure_ordem_servico_mobile_columns()
+    tecnico_id = session.get("user_id")
+    if not tecnico_id:
+        return jsonify({"ok": False, "erro": "Sessao expirada."}), 401
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT
+            os.id,
+            os.servico_nome,
+            os.data_agendamento,
+            os.hora,
+            os.status,
+            os.defeito_reclamado,
+            os.produto_defeito,
+            os.observacao,
+            os.assinatura_nome,
+            os.assinatura_data,
+            os.assinatura_imagem,
+            os.movimento_id,
+            c.nome AS cliente,
+            c.telefone,
+            c.endereco,
+            c.numero,
+            c.bairro,
+            c.cidade
+        FROM ordem_servico os
+        LEFT JOIN clientes c ON os.cliente_id = c.id
+        WHERE os.id = ? AND os.tecnico_id = ?
+        LIMIT 1
+    """, (os_id, tecnico_id))
+    o = cursor.fetchone()
+    if not o:
+        conn.close()
+        return jsonify({"ok": False, "erro": "Ordem nao encontrada para este tecnico."}), 404
+
+    cursor.execute("""
+        SELECT descricao, quantidade, valor, subtotal
+        FROM itens_ordem_servico
+        WHERE os_id = ?
+        ORDER BY id
+    """, (os_id,))
+    itens = cursor.fetchall()
+    conn.close()
+
+    return jsonify({
+        "ok": True,
+        "ordem": {
+            "id": o["id"],
+            "servico_nome": o["servico_nome"],
+            "data_agendamento": o["data_agendamento"],
+            "hora": o["hora"],
+            "status": o["status"],
+            "defeito_reclamado": o["defeito_reclamado"],
+            "produto_defeito": o["produto_defeito"],
+            "observacao": o["observacao"],
+            "assinatura_nome": o["assinatura_nome"],
+            "assinatura_data": o["assinatura_data"],
+            "assinatura_imagem": o["assinatura_imagem"],
+            "movimento_id": o["movimento_id"],
+            "cliente": o["cliente"],
+            "telefone": o["telefone"],
+            "endereco": o["endereco"],
+            "numero": o["numero"],
+            "bairro": o["bairro"],
+            "cidade": o["cidade"],
+            "itens": [
+                {
+                    "descricao": it["descricao"],
+                    "quantidade": it["quantidade"],
+                    "valor": float(it["valor"] or 0),
+                    "subtotal": float(it["subtotal"] or 0),
+                }
+                for it in itens
+            ]
+        }
+    })
+
+
+@app.route("/api/tecnico/ordem/<int:os_id>/status", methods=["POST"])
+def api_tecnico_atualizar_status(os_id):
+    ensure_ordem_servico_mobile_columns()
+    tecnico_id = session.get("user_id")
+    if not tecnico_id:
+        return jsonify({"ok": False, "erro": "Sessao expirada."}), 401
+
+    dados = request.get_json(silent=True) or {}
+    novo_status = (dados.get("status") or "").strip()
+    status_validos = {"Agendado", "Em Atendimento", "Finalizado"}
+    if novo_status not in status_validos:
+        return jsonify({"ok": False, "erro": "Status invalido."}), 400
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, assinatura_nome, assinatura_imagem, cliente_id, tecnico_id, movimento_id
+        FROM ordem_servico
+        WHERE id=? AND tecnico_id=?
+    """, (os_id, tecnico_id))
+    ordem = cursor.fetchone()
+    if not ordem:
+        conn.close()
+        return jsonify({"ok": False, "erro": "Ordem nao encontrada para este tecnico."}), 404
+
+    status_salvar = novo_status
+
+    if novo_status == "Finalizado":
+        tem_assinatura_nome = bool((ordem["assinatura_nome"] or "").strip())
+        tem_assinatura_img = bool((ordem["assinatura_imagem"] or "").strip())
+        if not tem_assinatura_nome and not tem_assinatura_img:
+            conn.close()
+            return jsonify({"ok": False, "erro": "Informe a assinatura do cliente antes de finalizar."}), 400
+
+        movimento_id = ordem["movimento_id"]
+        if not movimento_id:
+            cursor.execute("""
+                SELECT COALESCE(SUM(subtotal), 0) AS total
+                FROM itens_ordem_servico
+                WHERE os_id=?
+            """, (os_id,))
+            total_os = float(cursor.fetchone()["total"] or 0)
+
+            data_abertura = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            cursor.execute("""
+                INSERT INTO movimentos (tipo, data_abertura, status, total, cliente_id, funcionario_id)
+                VALUES ('OS', ?, 'PENDENTE', ?, ?, ?)
+            """, (data_abertura, total_os, ordem["cliente_id"], ordem["tecnico_id"]))
+            movimento_id = cursor.lastrowid
+
+            cursor.execute("UPDATE ordem_servico SET movimento_id=? WHERE id=?", (movimento_id, os_id))
+
+        status_salvar = "Aguardando Conferencia"
+
+    cursor.execute("UPDATE ordem_servico SET status=? WHERE id=?", (status_salvar, os_id))
+    conn.commit()
+    conn.close()
+
+    return jsonify({"ok": True, "status_salvo": status_salvar})
+
+
+@app.route("/api/tecnico/ordem/<int:os_id>/evidencias", methods=["POST"])
+def api_tecnico_salvar_evidencias(os_id):
+    ensure_ordem_servico_mobile_columns()
+    tecnico_id = session.get("user_id")
+    if not tecnico_id:
+        return jsonify({"ok": False, "erro": "Sessao expirada."}), 401
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM ordem_servico WHERE id=? AND tecnico_id=?", (os_id, tecnico_id))
+    ordem = cursor.fetchone()
+    if not ordem:
+        conn.close()
+        return jsonify({"ok": False, "erro": "Ordem nao encontrada para este tecnico."}), 404
+
+    assinatura_nome = (request.form.get("assinatura_nome") or "").strip()
+    assinatura_imagem = (request.form.get("assinatura_imagem") or "").strip()
+    assinatura_data = datetime.now().strftime("%Y-%m-%d %H:%M:%S") if assinatura_nome else None
+
+    assinatura_img_url = None
+    if assinatura_imagem.startswith("data:image/png;base64,"):
+        try:
+            raw = assinatura_imagem.split(",", 1)[1]
+            data = base64.b64decode(raw)
+            assinatura_nome_arquivo = f"os_{os_id}_assinatura_{uuid.uuid4().hex[:10]}.png"
+            caminho_assinatura = os.path.join(UPLOAD_OS_DIR, assinatura_nome_arquivo)
+            with open(caminho_assinatura, "wb") as f:
+                f.write(data)
+            assinatura_img_url = f"/static/uploads_os/{assinatura_nome_arquivo}"
+            assinatura_data = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        except (ValueError, IndexError, base64.binascii.Error):
+            assinatura_img_url = None
+
+    campos = ["assinatura_nome=?", "assinatura_data=?"]
+    params = [assinatura_nome, assinatura_data]
+    if assinatura_img_url:
+        campos.append("assinatura_imagem=?")
+        params.append(assinatura_img_url)
+    params.append(os_id)
+
+    cursor.execute(f"UPDATE ordem_servico SET {', '.join(campos)} WHERE id=?", params)
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        "ok": True,
+        "assinatura_imagem": assinatura_img_url
+    })
+
+
+@app.route("/api/tecnico/ordem/<int:os_id>/adicionar_item", methods=["POST"])
+def api_tecnico_adicionar_item(os_id):
+    tecnico_id = session.get("user_id")
+    if not tecnico_id:
+        return jsonify({"ok": False, "erro": "Sessao expirada."}), 401
+
+    data = request.get_json(silent=True) or {}
+    try:
+        produto_id = int(data.get("produto_id") or 0)
+        quantidade = int(data.get("quantidade") or 0)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "erro": "Dados invalidos para produto/quantidade."}), 400
+
+    if produto_id <= 0 or quantidade <= 0:
+        return jsonify({"ok": False, "erro": "Informe produto e quantidade validos."}), 400
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT id, status
+        FROM ordem_servico
+        WHERE id=? AND tecnico_id=?
+        LIMIT 1
+    """, (os_id, tecnico_id))
+    ordem = cursor.fetchone()
+    if not ordem:
+        conn.close()
+        return jsonify({"ok": False, "erro": "Ordem nao encontrada para este tecnico."}), 404
+
+    if ordem["status"] not in ("Agendado", "Em Atendimento"):
+        conn.close()
+        return jsonify({"ok": False, "erro": "Nao e possivel adicionar pecas depois de finalizar o atendimento."}), 400
+
+    cursor.execute("""
+        SELECT id, nome, preco_venda, estoque, COALESCE(tipo, 'produto') AS tipo
+        FROM produtos
+        WHERE id=?
+        LIMIT 1
+    """, (produto_id,))
+    produto = cursor.fetchone()
+    if not produto:
+        conn.close()
+        return jsonify({"ok": False, "erro": "Produto nao encontrado."}), 404
+
+    tipo = (produto["tipo"] or "produto").lower()
+    estoque_atual = int(produto["estoque"] or 0)
+    if tipo != "servico" and estoque_atual < quantidade:
+        conn.close()
+        return jsonify({"ok": False, "erro": "Estoque insuficiente para essa quantidade."}), 400
+
+    valor = float(produto["preco_venda"] or 0)
+    subtotal = valor * quantidade
+    cursor.execute("""
+        INSERT INTO itens_ordem_servico (os_id, descricao, quantidade, valor, subtotal)
+        VALUES (?, ?, ?, ?, ?)
+    """, (os_id, produto["nome"], quantidade, valor, subtotal))
+
+    if tipo != "servico":
+        cursor.execute("UPDATE produtos SET estoque = estoque - ? WHERE id=?", (quantidade, produto_id))
+        estoque_atual -= quantidade
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        "ok": True,
+        "item": {
+            "descricao": produto["nome"],
+            "quantidade": quantidade,
+            "valor": valor,
+            "subtotal": subtotal
+        },
+        "estoque_restante": estoque_atual
+    })
+
+
+@app.route("/loja_config", methods=["GET", "POST"])
+def loja_config():
+    ensure_loja_config_table()
+    conn = get_db()
+    cursor = conn.cursor()
+
+    if request.method == "POST":
+        acao = request.form.get("acao", "salvar")
+
+        if acao == "ficticia":
+            cursor.execute("""
+                UPDATE loja_config
+                SET nome_fantasia=?,
+                    razao_social=?,
+                    cnpj=?,
+                    telefone=?,
+                    endereco=?,
+                    numero=?,
+                    bairro=?,
+                    cidade=?,
+                    mensagem_cupom=?
+                WHERE id=1
+            """, (
+                "Central Market Exemplo",
+                "Central Market Comercio LTDA",
+                "12.345.678/0001-90",
+                "(11) 4002-8922",
+                "Av. Paulista",
+                "1000",
+                "Bela Vista",
+                "Sao Paulo - SP",
+                "Volte sempre! Loja demonstracao."
+            ))
+        else:
+            cursor.execute("""
+                UPDATE loja_config
+                SET nome_fantasia=?,
+                    razao_social=?,
+                    cnpj=?,
+                    telefone=?,
+                    endereco=?,
+                    numero=?,
+                    bairro=?,
+                    cidade=?,
+                    mensagem_cupom=?
+                WHERE id=1
+            """, (
+                request.form.get("nome_fantasia"),
+                request.form.get("razao_social"),
+                request.form.get("cnpj"),
+                request.form.get("telefone"),
+                request.form.get("endereco"),
+                request.form.get("numero"),
+                request.form.get("bairro"),
+                request.form.get("cidade"),
+                request.form.get("mensagem_cupom"),
+            ))
+        conn.commit()
+        conn.close()
+        return redirect("/loja_config")
+
+    cursor.execute("SELECT * FROM loja_config WHERE id=1")
+    loja = cursor.fetchone()
+    editar = request.args.get("editar") == "1"
+    conn.close()
+    return render_template("loja_config.html", loja=loja, editar=editar)
+
+
+@app.route("/config_descontos", methods=["GET", "POST"])
+def config_descontos():
+    ensure_desconto_config_table()
+    conn = get_db()
+    cursor = conn.cursor()
+
+    if request.method == "POST":
+        def f(nome, default=0):
+            try:
+                return float(request.form.get(nome, default) or default)
+            except (TypeError, ValueError):
+                return float(default)
+
+        desconto_livre_percent = max(0.0, f("desconto_livre_percent", 0))
+        desconto_livre_valor = max(0.0, f("desconto_livre_valor", 0))
+        limite_funcionario_percent = max(0.0, f("limite_funcionario_percent", 5))
+        limite_funcionario_valor = max(0.0, f("limite_funcionario_valor", 50))
+        limite_gerente_percent = max(0.0, f("limite_gerente_percent", 15))
+        limite_gerente_valor = max(0.0, f("limite_gerente_valor", 200))
+        limite_proprietario_percent = max(0.0, f("limite_proprietario_percent", 100))
+        limite_proprietario_valor = max(0.0, f("limite_proprietario_valor", 999999))
+
+        cursor.execute("""
+            UPDATE desconto_config
+            SET desconto_livre_percent=?,
+                desconto_livre_valor=?,
+                limite_funcionario_percent=?,
+                limite_funcionario_valor=?,
+                limite_gerente_percent=?,
+                limite_gerente_valor=?,
+                limite_proprietario_percent=?,
+                limite_proprietario_valor=?
+            WHERE id=1
+        """, (
+            desconto_livre_percent,
+            desconto_livre_valor,
+            limite_funcionario_percent,
+            limite_funcionario_valor,
+            limite_gerente_percent,
+            limite_gerente_valor,
+            limite_proprietario_percent,
+            limite_proprietario_valor
+        ))
+        conn.commit()
+        conn.close()
+        return redirect("/config_descontos")
+
+    cursor.execute("SELECT * FROM desconto_config WHERE id=1")
+    cfg = cursor.fetchone()
+    conn.close()
+    return render_template("config_descontos.html", cfg=cfg)
+#====================================f=============
 #rota Categories
 #=================================================
 @app.route("/categorias", methods=["GET", "POST"])
@@ -726,9 +1593,11 @@ def abrir_caixa():
 #=================================================
 #Rota para fechar caixa
 #=================================================
-@app.route("/fechar_caixa", methods=["POST"])
+@app.route("/fechar_caixa", methods=["GET", "POST"])
 def fechar_caixa():
     from datetime import datetime
+    if request.method == "GET":
+        return redirect("/caixa")
 
     conn = get_db()
     cursor = conn.cursor()
@@ -737,6 +1606,7 @@ def fechar_caixa():
     caixa = cursor.fetchone()
 
     if not caixa:
+        conn.close()
         return "Nenhum caixa aberto"
 
     caixa_id = caixa[0]
@@ -752,20 +1622,26 @@ def fechar_caixa():
 
     totais = cursor.fetchall()
 
-    dinheiro = 0
-    pix = 0
-    cartao = 0
-
+    formas_pagamento = {}
     for forma, valor in totais:
-        if forma == "DINHEIRO":
-            dinheiro = valor or 0
-        elif forma == "PIX":
-            pix = valor or 0
-        elif forma == "CARTAO":
-            cartao = valor or 0
+        chave = forma or "NAO INFORMADO"
+        formas_pagamento[chave] = float(valor or 0)
 
-    total_vendas = dinheiro + pix + cartao
+    dinheiro = formas_pagamento.get("DINHEIRO", 0)
+    pix = formas_pagamento.get("PIX", 0)
+    cartao = formas_pagamento.get("CARTAO", 0)
+    total_vendas = float(sum(formas_pagamento.values()))
     valor_final = valor_inicial + total_vendas
+    ticket_medio = (total_vendas / len(totais)) if totais else 0
+
+    cursor.execute("""
+        SELECT COUNT(*)
+        FROM movimentos
+        WHERE caixa_id=? AND status='PAGO'
+    """, (caixa_id,))
+    qtd_vendas = cursor.fetchone()[0] or 0
+    if qtd_vendas:
+        ticket_medio = total_vendas / qtd_vendas
 
     data_fechamento = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -780,16 +1656,79 @@ def fechar_caixa():
     conn.commit()
     conn.close()
 
-    return f"""
-    <h2>📊 FECHAMENTO DO CAIXA</h2>
-    <p>💰 Valor inicial: R$ {valor_inicial:.2f}</p>
-    <p>💵 Dinheiro: R$ {dinheiro:.2f}</p>
-    <p>📲 PIX: R$ {pix:.2f}</p>
-    <p>💳 Cartão: R$ {cartao:.2f}</p>
-    <hr>
-    <p><strong>Total vendas: R$ {total_vendas:.2f}</strong></p>
-    <h3>🏦 Valor esperado no caixa: R$ {valor_final:.2f}</h3>
-    """
+    return render_template(
+        "fechamento_caixa.html",
+        caixa_id=caixa_id,
+        data_fechamento=data_fechamento,
+        valor_inicial=float(valor_inicial or 0),
+        dinheiro=float(dinheiro or 0),
+        pix=float(pix or 0),
+        cartao=float(cartao or 0),
+        total_vendas=float(total_vendas or 0),
+        qtd_vendas=int(qtd_vendas or 0),
+        ticket_medio=float(ticket_medio or 0),
+        valor_final=float(valor_final or 0),
+        formas_pagamento=formas_pagamento
+    )
+
+
+@app.route("/imprimir_fechamento_caixa/<int:caixa_id>")
+def imprimir_fechamento_caixa(caixa_id):
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT id, data_abertura, data_fechamento, valor_inicial, valor_final, status
+        FROM caixas
+        WHERE id=?
+        LIMIT 1
+    """, (caixa_id,))
+    caixa = cursor.fetchone()
+
+    if not caixa:
+        conn.close()
+        return "Caixa nao encontrado.", 404
+
+    cursor.execute("""
+        SELECT COALESCE(forma_pagamento, 'NAO INFORMADO') AS forma, COALESCE(SUM(total), 0) AS total
+        FROM movimentos
+        WHERE caixa_id=? AND status='PAGO'
+        GROUP BY forma_pagamento
+    """, (caixa_id,))
+    totais = cursor.fetchall()
+
+    formas_pagamento = {t["forma"]: float(t["total"] or 0) for t in totais}
+    dinheiro = formas_pagamento.get("DINHEIRO", 0.0)
+    pix = formas_pagamento.get("PIX", 0.0)
+    cartao = formas_pagamento.get("CARTAO", 0.0)
+    total_vendas = float(sum(formas_pagamento.values()))
+
+    cursor.execute("""
+        SELECT COUNT(*)
+        FROM movimentos
+        WHERE caixa_id=? AND status='PAGO'
+    """, (caixa_id,))
+    qtd_vendas = cursor.fetchone()[0] or 0
+    ticket_medio = (total_vendas / qtd_vendas) if qtd_vendas else 0.0
+
+    conn.close()
+
+    return render_template(
+        "fechamento_caixa_cupom.html",
+        caixa_id=caixa["id"],
+        data_abertura=caixa["data_abertura"],
+        data_fechamento=caixa["data_fechamento"],
+        status=caixa["status"],
+        valor_inicial=float(caixa["valor_inicial"] or 0),
+        valor_final=float(caixa["valor_final"] or 0),
+        total_vendas=float(total_vendas or 0),
+        qtd_vendas=int(qtd_vendas or 0),
+        ticket_medio=float(ticket_medio or 0),
+        dinheiro=float(dinheiro or 0),
+        pix=float(pix or 0),
+        cartao=float(cartao or 0),
+        formas_pagamento=formas_pagamento
+    )
 #=================================================
 #TELA PARA ABRIR CAIXA
 #=================================================
@@ -803,6 +1742,13 @@ def tela_caixa():
 
     total_vendas = 0
     qtd_vendas = 0
+    ticket_medio = 0
+    formas_pagamento = {}
+    vendas_por_hora = []
+    ultimas_vendas = []
+    pendentes_qtd = 0
+    pendentes_total = 0
+    ultimo_fechamento = None
 
     if caixa:
         caixa_id = caixa["id"]
@@ -818,6 +1764,73 @@ def tela_caixa():
         if resultado:
             total_vendas = resultado[0] or 0
             qtd_vendas = resultado[1] or 0
+            ticket_medio = (total_vendas / qtd_vendas) if qtd_vendas else 0
+
+        cursor.execute("""
+            SELECT COALESCE(forma_pagamento, 'NAO INFORMADO') AS forma,
+                   COALESCE(SUM(total), 0) AS total
+            FROM movimentos
+            WHERE caixa_id=? AND status='PAGO'
+            GROUP BY forma_pagamento
+        """, (caixa_id,))
+        formas = cursor.fetchall()
+        formas_pagamento = {f["forma"]: float(f["total"] or 0) for f in formas}
+
+        cursor.execute("""
+            SELECT substr(data_abertura, 12, 2) AS hora,
+                   COALESCE(SUM(total), 0) AS total
+            FROM movimentos
+            WHERE caixa_id=? AND status='PAGO'
+            GROUP BY substr(data_abertura, 12, 2)
+            ORDER BY hora
+        """, (caixa_id,))
+        horas = cursor.fetchall()
+        vendas_por_hora = [{"hora": h["hora"], "total": float(h["total"] or 0)} for h in horas]
+
+        cursor.execute("""
+            SELECT id, total, forma_pagamento, data_abertura
+            FROM movimentos
+            WHERE caixa_id=? AND status='PAGO'
+            ORDER BY id DESC
+            LIMIT 8
+        """, (caixa_id,))
+        vendas = cursor.fetchall()
+        ultimas_vendas = [
+            {
+                "id": v["id"],
+                "total": float(v["total"] or 0),
+                "forma": v["forma_pagamento"] or "NAO INFORMADO",
+                "data": v["data_abertura"] or ""
+            }
+            for v in vendas
+        ]
+
+    cursor.execute("""
+        SELECT COUNT(*), COALESCE(SUM(total), 0)
+        FROM movimentos
+        WHERE status='PENDENTE'
+    """)
+    pendentes = cursor.fetchone()
+    if pendentes:
+        pendentes_qtd = pendentes[0] or 0
+        pendentes_total = float(pendentes[1] or 0)
+
+    cursor.execute("""
+        SELECT id, data_abertura, data_fechamento, valor_inicial, valor_final
+        FROM caixas
+        WHERE status='FECHADO'
+        ORDER BY id DESC
+        LIMIT 1
+    """)
+    ultimo = cursor.fetchone()
+    if ultimo:
+        ultimo_fechamento = {
+            "id": ultimo["id"],
+            "data_abertura": ultimo["data_abertura"],
+            "data_fechamento": ultimo["data_fechamento"],
+            "valor_inicial": float(ultimo["valor_inicial"] or 0),
+            "valor_final": float(ultimo["valor_final"] or 0),
+        }
 
     conn.close()
 
@@ -825,7 +1838,14 @@ def tela_caixa():
         "caixa.html",
         caixa=caixa,
         total_vendas=total_vendas,
-        qtd_vendas=qtd_vendas
+        qtd_vendas=qtd_vendas,
+        ticket_medio=ticket_medio,
+        formas_pagamento=formas_pagamento,
+        vendas_por_hora=vendas_por_hora,
+        ultimas_vendas=ultimas_vendas,
+        pendentes_qtd=pendentes_qtd,
+        pendentes_total=pendentes_total,
+        ultimo_fechamento=ultimo_fechamento
     )
 
 #=================================================
@@ -897,6 +1917,7 @@ def painel_caixa():
 #=================================================
 @app.route("/caixa_pedidos")
 def caixa_pedidos():
+    ensure_movimentos_cancelamento_columns()
     conn = get_db()
     cursor = conn.cursor()
 
@@ -908,24 +1929,77 @@ def caixa_pedidos():
     """)
 
     pedidos = cursor.fetchall()
+    conn.close()
     return render_template("caixa_pedidos.html", pedidos=pedidos)
 #=================================================
 #rota para receber pagamento
 #=================================================
 @app.route("/pagar_pedido/<int:id>", methods=["GET","POST"])
 def pagar_pedido(id):
+    ensure_movimentos_troco_columns()
     conn = get_db()
     cursor = conn.cursor()
 
     if request.method == "POST":
-        forma = request.form["forma_pagamento"]
-        bandeira = request.form.get("bandeira")
+        valor_recebido = 0.0
+        if request.is_json:
+            dados = request.get_json(silent=True) or {}
+            forma = (dados.get("forma_pagamento") or "").strip().upper()
+            bandeira = (dados.get("bandeira") or "").strip()
+            try:
+                valor_recebido = float(dados.get("valor_recebido") or 0)
+            except (TypeError, ValueError):
+                valor_recebido = 0.0
+        else:
+            forma = (request.form.get("forma_pagamento") or "").strip().upper()
+            bandeira = request.form.get("bandeira")
+            try:
+                valor_recebido = float(request.form.get("valor_recebido") or 0)
+            except (TypeError, ValueError):
+                valor_recebido = 0.0
+
+        if forma not in ("DINHEIRO", "PIX", "CARTAO"):
+            conn.close()
+            if request.is_json:
+                return jsonify({"ok": False, "erro": "Forma de pagamento invalida."}), 400
+            return "Forma de pagamento invalida", 400
+
+        cursor.execute("SELECT total, status FROM movimentos WHERE id=? LIMIT 1", (id,))
+        pedido = cursor.fetchone()
+        if not pedido:
+            conn.close()
+            if request.is_json:
+                return jsonify({"ok": False, "erro": "Pedido nao encontrado."}), 404
+            return "Pedido nao encontrado", 404
+        if pedido["status"] != "PENDENTE":
+            conn.close()
+            if request.is_json:
+                return jsonify({"ok": False, "erro": "Pedido nao esta pendente."}), 400
+            return "Pedido nao esta pendente", 400
+
+        total_pedido = float(pedido["total"] or 0)
+        troco = 0.0
+        if forma == "DINHEIRO":
+            if valor_recebido <= 0:
+                conn.close()
+                if request.is_json:
+                    return jsonify({"ok": False, "erro": "Informe o valor recebido em dinheiro."}), 400
+                return "Informe o valor recebido", 400
+            if valor_recebido < total_pedido:
+                conn.close()
+                if request.is_json:
+                    return jsonify({"ok": False, "erro": "Valor recebido menor que o total do pedido."}), 400
+                return "Valor recebido insuficiente", 400
+            troco = valor_recebido - total_pedido
 
         # verificar caixa aberto
         cursor.execute("SELECT id FROM caixas WHERE status='ABERTO' LIMIT 1")
         caixa = cursor.fetchone()
 
         if not caixa:
+            conn.close()
+            if request.is_json:
+                return jsonify({"ok": False, "erro": "Nenhum caixa aberto."}), 400
             return "Nenhum caixa aberto!"
 
         caixa_id = caixa[0]
@@ -936,44 +2010,239 @@ def pagar_pedido(id):
             SET status='PAGO',
                 forma_pagamento=?,
                 bandeira=?,
+                valor_recebido=?,
+                troco=?,
                 caixa_id=?
             WHERE id=?
-        """, (forma, bandeira, caixa_id, id))
+        """, (forma, bandeira, valor_recebido, troco, caixa_id, id))
+
+        cursor.execute("""
+            UPDATE ordem_servico
+            SET status='Finalizado'
+            WHERE movimento_id=?
+        """, (id,))
 
         conn.commit()
         conn.close()
+
+        if request.is_json:
+            return jsonify({
+                "ok": True,
+                "cupom_url": f"/imprimir_cupom/{id}",
+                "troco": float(troco),
+                "valor_recebido": float(valor_recebido)
+            })
 
         return redirect(f"/imprimir_cupom/{id}")
 
     conn.close()
     return render_template("pagamento.html", pedido_id=id)
 #=================================================
-#rota gerar_pedido
+#rota para cancelar pedido
 #=================================================
-@app.route("/gerar_pedido", methods=["POST"])
-def gerar_pedido():
-    data = request.get_json()
-    itens = data["itens"]
+@app.route("/cancelar_pedido/<int:id>", methods=["POST"])
+def cancelar_pedido(id):
+    from datetime import datetime
+
+    ensure_movimentos_cancelamento_columns()
+
+    motivo = (request.form.get("motivo_cancelamento") or "").strip()
+    if not motivo:
+        dados = request.get_json(silent=True) or {}
+        motivo = (dados.get("motivo_cancelamento") or "").strip()
+
+    if len(motivo) < 3:
+        return jsonify({"ok": False, "erro": "Informe o motivo do cancelamento."}), 400
 
     conn = get_db()
     cursor = conn.cursor()
 
+    cursor.execute("SELECT status FROM movimentos WHERE id=?", (id,))
+    mov = cursor.fetchone()
+    if not mov:
+        conn.close()
+        return jsonify({"ok": False, "erro": "Pedido nao encontrado."}), 404
+
+    if mov["status"] != "PENDENTE":
+        conn.close()
+        return jsonify({"ok": False, "erro": "So pedidos pendentes podem ser cancelados."}), 400
+
+    cursor.execute("""
+        SELECT produto_id, quantidade
+        FROM itens_movimento
+        WHERE movimento_id=?
+    """, (id,))
+    itens = cursor.fetchall()
+
+    for item in itens:
+        cursor.execute("""
+            UPDATE produtos
+            SET estoque = estoque + ?
+            WHERE id = ?
+        """, (item["quantidade"], item["produto_id"]))
+
+    data_cancelamento = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    cursor.execute("""
+        UPDATE movimentos
+        SET status='CANCELADO',
+            motivo_cancelamento=?,
+            data_cancelamento=?
+        WHERE id=?
+    """, (motivo, data_cancelamento, id))
+
+    cursor.execute("""
+        UPDATE ordem_servico
+        SET status='Agendado'
+        WHERE movimento_id=?
+    """, (id,))
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({"ok": True})
+#=================================================
+#rota gerar_pedido
+#=================================================
+@app.route("/gerar_pedido", methods=["POST"])
+def gerar_pedido():
+    ensure_movimentos_desconto_columns()
+    ensure_funcionarios_auth_columns()
+    ensure_desconto_config_table()
+
+    data = request.get_json(silent=True) or {}
+    itens = data.get("itens") or []
+    if not itens:
+        return jsonify({"ok": False, "erro": "Pedido sem itens."}), 400
+
+    funcionario_id = data.get("funcionario_id")
+    funcionario_senha = data.get("funcionario_senha") or ""
+    desconto_tipo = (data.get("desconto_tipo") or "valor").lower()
+    desconto_input = data.get("desconto_valor") or 0
+    autorizador_id = data.get("autorizador_id")
+    autorizador_senha = data.get("autorizador_senha") or ""
+
+    try:
+        funcionario_id = int(funcionario_id)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "erro": "Informe o ID do funcionario."}), 400
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cfg = get_desconto_config(cursor)
+
+    cursor.execute("""
+        SELECT id, nome, senha_hash, status
+        FROM funcionarios
+        WHERE id=?
+        LIMIT 1
+    """, (funcionario_id,))
+    funcionario = cursor.fetchone()
+
+    if not funcionario:
+        conn.close()
+        return jsonify({"ok": False, "erro": "Funcionario nao encontrado."}), 404
+    if (funcionario["status"] or "Ativo") != "Ativo":
+        conn.close()
+        return jsonify({"ok": False, "erro": "Funcionario inativo."}), 400
+    if not funcionario["senha_hash"] or not check_password_hash(funcionario["senha_hash"], funcionario_senha):
+        conn.close()
+        return jsonify({"ok": False, "erro": "Senha do funcionario invalida."}), 401
+
     from datetime import datetime
     data_abertura = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # cria pedido pendente
-    cursor.execute("""
-        INSERT INTO movimentos (tipo, data_abertura, status, total)
-        VALUES ('VENDA', ?, 'PENDENTE', 0)
-    """, (data_abertura,))
-
-    movimento_id = cursor.lastrowid
-    total = 0
+    total_bruto = 0.0
 
     for item in itens:
-        subtotal = item["preco"] * item["quantidade"]
-        total += subtotal
+        subtotal = float(item["preco"]) * float(item["quantidade"])
+        total_bruto += subtotal
 
+    try:
+        desconto_input = float(desconto_input)
+    except (TypeError, ValueError):
+        desconto_input = 0.0
+    if desconto_input < 0:
+        desconto_input = 0.0
+
+    desconto_valor = 0.0
+    desconto_tipo_db = None
+    autorizador_id_db = None
+
+    if desconto_tipo == "percentual":
+        if desconto_input > 100:
+            conn.close()
+            return jsonify({"ok": False, "erro": "Desconto percentual nao pode ser maior que 100."}), 400
+        desconto_valor = total_bruto * (desconto_input / 100.0)
+        desconto_tipo_db = "PERCENTUAL"
+    else:
+        desconto_valor = desconto_input
+        desconto_tipo_db = "VALOR"
+
+    if desconto_valor > total_bruto:
+        desconto_valor = total_bruto
+
+    percentual_real = (desconto_valor / total_bruto * 100.0) if total_bruto > 0 else 0.0
+    limite_func_percent = float(cfg["limite_funcionario_percent"] or 0)
+    limite_func_valor = float(cfg["limite_funcionario_valor"] or 0)
+    exige_autorizacao = desconto_valor > 0 and (
+        desconto_valor > limite_func_valor or percentual_real > limite_func_percent
+    )
+
+    if desconto_valor > 0:
+        if exige_autorizacao:
+            try:
+                autorizador_id_db = int(autorizador_id)
+            except (TypeError, ValueError):
+                conn.close()
+                return jsonify({"ok": False, "erro": "Desconto exige ID do gerente/proprietario."}), 400
+
+            cursor.execute("""
+                SELECT id, senha_hash, perfil, status
+                FROM funcionarios
+                WHERE id=?
+                LIMIT 1
+            """, (autorizador_id_db,))
+            autorizador = cursor.fetchone()
+
+            if not autorizador:
+                conn.close()
+                return jsonify({"ok": False, "erro": "Autorizador nao encontrado."}), 404
+            if (autorizador["status"] or "Ativo") != "Ativo":
+                conn.close()
+                return jsonify({"ok": False, "erro": "Autorizador inativo."}), 400
+            perfil_autorizador = (autorizador["perfil"] or "funcionario")
+            if perfil_autorizador not in ("gerente", "proprietario"):
+                conn.close()
+                return jsonify({"ok": False, "erro": "Desconto so pode ser autorizado por gerente ou proprietario."}), 403
+            if not autorizador["senha_hash"] or not check_password_hash(autorizador["senha_hash"], autorizador_senha):
+                conn.close()
+                return jsonify({"ok": False, "erro": "Senha do autorizador invalida."}), 401
+
+            if perfil_autorizador == "gerente":
+                if percentual_real > float(cfg["limite_gerente_percent"] or 0) or desconto_valor > float(cfg["limite_gerente_valor"] or 0):
+                    conn.close()
+                    return jsonify({"ok": False, "erro": "Desconto acima do limite permitido para gerente."}), 403
+            elif perfil_autorizador == "proprietario":
+                if percentual_real > float(cfg["limite_proprietario_percent"] or 0) or desconto_valor > float(cfg["limite_proprietario_valor"] or 0):
+                    conn.close()
+                    return jsonify({"ok": False, "erro": "Desconto acima do limite permitido para proprietario."}), 403
+
+    total_final = total_bruto - desconto_valor
+
+    # cria pedido pendente
+    cursor.execute("""
+        INSERT INTO movimentos (
+            tipo, data_abertura, status, total, funcionario_id,
+            desconto_valor, desconto_tipo, autorizador_id
+        )
+        VALUES ('VENDA', ?, 'PENDENTE', ?, ?, ?, ?, ?)
+    """, (data_abertura, total_final, funcionario_id, desconto_valor, desconto_tipo_db, autorizador_id_db))
+
+    movimento_id = cursor.lastrowid
+
+    for item in itens:
+        subtotal = float(item["preco"]) * float(item["quantidade"])
         cursor.execute("""
             INSERT INTO itens_movimento
             (movimento_id, produto_id, quantidade, preco_unitario, subtotal)
@@ -992,13 +2261,16 @@ def gerar_pedido():
             WHERE id = ?
         """, (item["quantidade"], item["id"]))
 
-    cursor.execute("""
-        UPDATE movimentos SET total=? WHERE id=?
-    """, (total, movimento_id))
-
     conn.commit()
+    conn.close()
 
-    return jsonify({"pedido_id": movimento_id})
+    return jsonify({
+        "ok": True,
+        "pedido_id": movimento_id,
+        "total_bruto": float(total_bruto),
+        "desconto_valor": float(desconto_valor),
+        "total_final": float(total_final)
+    })
 #=================================================
 #rota que envia dados atualizados
 #===============================================
@@ -1011,6 +2283,7 @@ def caixa_total():
     caixa = cursor.fetchone()
 
     if not caixa:
+        conn.close()
         return {"total": 0, "vendas": 0}
 
     caixa_id = caixa["id"]
@@ -1025,31 +2298,117 @@ def caixa_total():
 
     total = resultado[0] or 0
     vendas = resultado[1] or 0
+    ticket_medio = (total / vendas) if vendas else 0
 
-    return {"total": total, "vendas": vendas} 
+    cursor.execute("""
+        SELECT COALESCE(forma_pagamento, 'NAO INFORMADO') AS forma,
+               COALESCE(SUM(total), 0) AS total
+        FROM movimentos
+        WHERE caixa_id=? AND status='PAGO'
+        GROUP BY forma_pagamento
+    """, (caixa_id,))
+    formas = cursor.fetchall()
+    formas_pagamento = {f["forma"]: float(f["total"] or 0) for f in formas}
+
+    cursor.execute("""
+        SELECT substr(data_abertura, 12, 2) AS hora,
+               COALESCE(SUM(total), 0) AS total
+        FROM movimentos
+        WHERE caixa_id=? AND status='PAGO'
+        GROUP BY substr(data_abertura, 12, 2)
+        ORDER BY hora
+    """, (caixa_id,))
+    horas = cursor.fetchall()
+    vendas_por_hora = [{"hora": h["hora"], "total": float(h["total"] or 0)} for h in horas]
+
+    payload = {
+        "total": float(total),
+        "vendas": int(vendas),
+        "ticket_medio": float(ticket_medio),
+        "formas_pagamento": formas_pagamento,
+        "vendas_por_hora": vendas_por_hora
+    }
+    conn.close()
+    return payload
 # ================================================
 #rota que retorna pedidos em JSON
 #=================================================
 @app.route("/pedidos_pendentes")
 def pedidos_pendentes():
+    ensure_movimentos_cancelamento_columns()
+    ensure_movimentos_desconto_columns()
+    ensure_ordem_servico_mobile_columns()
     conn = get_db()
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT id, total
-        FROM movimentos
-        WHERE status='PENDENTE'
-        ORDER BY id DESC
+        SELECT m.id, m.tipo, m.total, m.data_abertura, m.funcionario_id,
+               COALESCE(f.nome, '') AS funcionario_nome,
+               os.id AS os_id,
+               COALESCE(m.desconto_valor, 0) AS desconto_valor,
+               COALESCE(m.desconto_tipo, '') AS desconto_tipo
+        FROM movimentos m
+        LEFT JOIN funcionarios f ON m.funcionario_id = f.id
+        LEFT JOIN ordem_servico os ON os.movimento_id = m.id
+        WHERE m.status='PENDENTE'
+        ORDER BY m.id DESC
     """)
 
     pedidos = cursor.fetchall()
 
     lista = [
-        {"id": p["id"], "total": p["total"]}
+        {
+            "id": p["id"],
+            "origem": p["tipo"] or "VENDA",
+            "os_id": p["os_id"],
+            "total": p["total"],
+            "data": p["data_abertura"],
+            "funcionario_id": p["funcionario_id"],
+            "funcionario_nome": p["funcionario_nome"],
+            "desconto_valor": p["desconto_valor"],
+            "desconto_tipo": p["desconto_tipo"]
+        }
         for p in pedidos
     ]
 
-    return {"pedidos": lista}
+    cursor.execute("""
+        SELECT m.id, m.tipo, m.total, m.status, m.forma_pagamento, m.data_abertura,
+               m.funcionario_id, COALESCE(f.nome, '') AS funcionario_nome,
+               os.id AS os_id,
+               COALESCE(m.data_cancelamento, '') AS data_cancelamento,
+               COALESCE(m.motivo_cancelamento, '') AS motivo_cancelamento,
+               COALESCE(m.desconto_valor, 0) AS desconto_valor,
+               COALESCE(m.desconto_tipo, '') AS desconto_tipo
+        FROM movimentos m
+        LEFT JOIN funcionarios f ON m.funcionario_id = f.id
+        LEFT JOIN ordem_servico os ON os.movimento_id = m.id
+        WHERE m.status IN ('PAGO', 'CANCELADO')
+        ORDER BY m.id DESC
+        LIMIT 25
+    """)
+    fechados = cursor.fetchall()
+
+    lista_fechados = [
+        {
+            "id": f["id"],
+            "origem": f["tipo"] or "VENDA",
+            "os_id": f["os_id"],
+            "total": f["total"],
+            "status": f["status"],
+            "forma_pagamento": f["forma_pagamento"],
+            "data": f["data_abertura"],
+            "funcionario_id": f["funcionario_id"],
+            "funcionario_nome": f["funcionario_nome"],
+            "data_cancelamento": f["data_cancelamento"],
+            "motivo_cancelamento": f["motivo_cancelamento"],
+            "desconto_valor": f["desconto_valor"],
+            "desconto_tipo": f["desconto_tipo"]
+        }
+        for f in fechados
+    ]
+
+    conn.close()
+    return {"pedidos": lista, "fechados": lista_fechados}
 # ================================================
 #rota para ver o pedido
 #=================================================
@@ -1075,7 +2434,64 @@ def ver_pedido(id):
     """, (id,))
     itens = cursor.fetchall()
 
+    conn.close()
     return render_template("ver_pedido.html", pedido=pedido, itens=itens)
+
+# ================================================
+#rota detalhes pedido em JSON
+#=================================================
+@app.route("/pedido_detalhes/<int:id>")
+def pedido_detalhes(id):
+    ensure_movimentos_desconto_columns()
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT m.id, m.total, m.status, m.data_abertura, m.funcionario_id,
+               COALESCE(f.nome, '') AS funcionario_nome,
+               COALESCE(m.desconto_valor, 0) AS desconto_valor,
+               COALESCE(m.desconto_tipo, '') AS desconto_tipo
+        FROM movimentos m
+        LEFT JOIN funcionarios f ON m.funcionario_id = f.id
+        WHERE m.id=?
+    """, (id,))
+    pedido = cursor.fetchone()
+
+    if not pedido:
+        conn.close()
+        return jsonify({"ok": False, "erro": "Pedido nao encontrado."}), 404
+
+    cursor.execute("""
+        SELECT p.nome, im.quantidade, im.preco_unitario, im.subtotal
+        FROM itens_movimento im
+        JOIN produtos p ON im.produto_id = p.id
+        WHERE im.movimento_id=?
+    """, (id,))
+    itens = cursor.fetchall()
+    conn.close()
+
+    return jsonify({
+        "ok": True,
+        "pedido": {
+            "id": pedido["id"],
+            "total": float(pedido["total"] or 0),
+            "status": pedido["status"],
+            "data": pedido["data_abertura"],
+            "funcionario_id": pedido["funcionario_id"],
+            "funcionario_nome": pedido["funcionario_nome"],
+            "desconto_valor": float(pedido["desconto_valor"] or 0),
+            "desconto_tipo": pedido["desconto_tipo"]
+        },
+        "itens": [
+            {
+                "nome": i["nome"],
+                "quantidade": i["quantidade"],
+                "preco_unitario": float(i["preco_unitario"] or 0),
+                "subtotal": float(i["subtotal"] or 0)
+            }
+            for i in itens
+        ]
+    })
 # ================================================
 #rota gerar_pedido
 #=================================================
@@ -1083,10 +2499,18 @@ def ver_pedido(id):
 def imprimir_cupom(id):
     from datetime import datetime
 
+    ensure_loja_config_table()
+    ensure_movimentos_desconto_columns()
+    ensure_movimentos_troco_columns()
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT * FROM movimentos WHERE id=?", (id,))
+    cursor.execute("""
+        SELECT m.*, COALESCE(f.nome, '') AS funcionario_nome
+        FROM movimentos m
+        LEFT JOIN funcionarios f ON m.funcionario_id = f.id
+        WHERE m.id=?
+    """, (id,))
     pedido = cursor.fetchone()
 
     cursor.execute("""
@@ -1097,38 +2521,58 @@ def imprimir_cupom(id):
     """, (id,))
     itens = cursor.fetchall()
 
+    cursor.execute("SELECT * FROM loja_config WHERE id=1")
+    loja = cursor.fetchone()
+
     data = datetime.now().strftime("%d/%m/%Y %H:%M")
+    conn.close()
 
     return render_template("cupom.html",
                            pedido=pedido,
                            itens=itens,
-                           data=data)
+                           data=data,
+                           loja=loja)
 # ================================================
 #rota cadastro funcionarios
 #=================================================
 @app.route("/funcionarios", methods=["GET","POST"])
 def funcionarios():
+    ensure_funcionarios_auth_columns()
 
     conn = get_db()
     cursor = conn.cursor()
 
     if request.method == "POST":
 
-        nome = request.form["nome"]
-        cpf = request.form["cpf"]
-        telefone = request.form["telefone"]
-        whatsapp = request.form["whatsapp"]
-        email = request.form["email"]
-        cargo = request.form["cargo"]
-        funcao = request.form["funcao"]
-        comissao = request.form["comissao"]
-        endereco = request.form["endereco"]
+        nome = request.form.get("nome", "").strip()
+        cpf = "".join(ch for ch in (request.form.get("cpf") or "") if ch.isdigit())
+        telefone = request.form.get("telefone")
+        whatsapp = request.form.get("whatsapp")
+        email = request.form.get("email")
+        cargo = request.form.get("cargo")
+        funcao = request.form.get("funcao")
+        comissao = request.form.get("comissao")
+        endereco = request.form.get("endereco")
+        perfil = (request.form.get("perfil") or "funcionario").lower()
+        senha = request.form.get("senha") or ""
+
+        if perfil not in ROLE_LEVEL:
+            perfil = "funcionario"
+
+        if len(cpf) < 11:
+            conn.close()
+            return "CPF invalido.", 400
+        if len(senha) < 4:
+            conn.close()
+            return "Senha deve ter ao menos 4 caracteres.", 400
+
+        senha_hash = generate_password_hash(senha)
 
         cursor.execute("""
         INSERT INTO funcionarios
-        (nome,cpf,telefone,whatsapp,email,cargo,funcao,comissao,endereco)
-        VALUES (?,?,?,?,?,?,?,?,?)
-        """,(nome,cpf,telefone,whatsapp,email,cargo,funcao,comissao,endereco))
+        (nome,cpf,telefone,whatsapp,email,cargo,funcao,comissao,endereco,status,senha_hash,perfil)
+        VALUES (?,?,?,?,?,?,?,?,?,'Ativo',?,?)
+        """,(nome,cpf,telefone,whatsapp,email,cargo,funcao,comissao,endereco,senha_hash,perfil))
 
         conn.commit()
 
@@ -1138,6 +2582,97 @@ def funcionarios():
     conn.close()
 
     return render_template("funcionarios.html", funcionarios=lista)
+
+
+@app.route("/editar_funcionario/<int:id>", methods=["GET", "POST"])
+def editar_funcionario(id):
+    ensure_funcionarios_auth_columns()
+    conn = get_db()
+    cursor = conn.cursor()
+
+    if request.method == "POST":
+        nome = request.form.get("nome", "").strip()
+        cpf = "".join(ch for ch in (request.form.get("cpf") or "") if ch.isdigit())
+        telefone = request.form.get("telefone")
+        whatsapp = request.form.get("whatsapp")
+        email = request.form.get("email")
+        cargo = request.form.get("cargo")
+        funcao = request.form.get("funcao")
+        comissao = request.form.get("comissao")
+        endereco = request.form.get("endereco")
+        perfil = (request.form.get("perfil") or "funcionario").lower()
+        senha = request.form.get("senha") or ""
+
+        if perfil not in ROLE_LEVEL:
+            perfil = "funcionario"
+        if len(cpf) < 11:
+            conn.close()
+            return "CPF invalido.", 400
+
+        if senha:
+            senha_hash = generate_password_hash(senha)
+            cursor.execute("""
+                UPDATE funcionarios
+                SET nome=?, cpf=?, telefone=?, whatsapp=?, email=?,
+                    cargo=?, funcao=?, comissao=?, endereco=?, perfil=?,
+                    senha_hash=?
+                WHERE id=?
+            """, (nome, cpf, telefone, whatsapp, email, cargo, funcao, comissao, endereco, perfil, senha_hash, id))
+        else:
+            cursor.execute("""
+                UPDATE funcionarios
+                SET nome=?, cpf=?, telefone=?, whatsapp=?, email=?,
+                    cargo=?, funcao=?, comissao=?, endereco=?, perfil=?
+                WHERE id=?
+            """, (nome, cpf, telefone, whatsapp, email, cargo, funcao, comissao, endereco, perfil, id))
+
+        conn.commit()
+        conn.close()
+        return redirect("/funcionarios")
+
+    cursor.execute("SELECT * FROM funcionarios WHERE id=?", (id,))
+    funcionario = cursor.fetchone()
+    conn.close()
+
+    if not funcionario:
+        return "Funcionario nao encontrado.", 404
+
+    return render_template("editar_funcionario.html", funcionario=funcionario)
+
+
+@app.route("/excluir_funcionario/<int:id>", methods=["POST"])
+def excluir_funcionario(id):
+    ensure_funcionarios_auth_columns()
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT id, perfil FROM funcionarios WHERE id=?", (id,))
+    funcionario = cursor.fetchone()
+    if not funcionario:
+        conn.close()
+        return "Funcionario nao encontrado.", 404
+
+    usuario_logado_id = session.get("user_id")
+    if usuario_logado_id == id:
+        conn.close()
+        return "Nao e permitido excluir o proprio usuario logado.", 400
+
+    if (funcionario["perfil"] or "").lower() == "proprietario":
+        cursor.execute("SELECT COUNT(*) FROM funcionarios WHERE perfil='proprietario'")
+        total_prop = cursor.fetchone()[0]
+        if total_prop <= 1:
+            conn.close()
+            return "Nao e permitido excluir o ultimo proprietario.", 400
+
+    try:
+        cursor.execute("DELETE FROM funcionarios WHERE id=?", (id,))
+        conn.commit()
+    except sqlite3.IntegrityError:
+        conn.close()
+        return "Nao foi possivel excluir: funcionario vinculado a outros registros.", 400
+
+    conn.close()
+    return redirect("/funcionarios")
 # ================================================
 #rota cadastro cliente
 #=================================================
@@ -1255,6 +2790,77 @@ def buscar_cliente():
 
     return jsonify(resultado)
 # ================================================
+#rota cadastro rapido cliente
+#=================================================
+@app.route("/cadastrar_cliente_rapido", methods=["POST"])
+def cadastrar_cliente_rapido():
+    dados = request.get_json(silent=True) or {}
+
+    nome = (dados.get("nome") or "").strip()
+    telefone = (dados.get("telefone") or "").strip()
+    whatsapp = (dados.get("whatsapp") or "").strip()
+    cpf = (dados.get("cpf") or "").strip()
+    endereco = (dados.get("endereco") or "").strip()
+    numero = (dados.get("numero") or "").strip()
+
+    if len(nome) < 3:
+        return jsonify({"erro": "Informe um nome valido com pelo menos 3 caracteres."}), 400
+    if not cpf:
+        return jsonify({"erro": "CPF e obrigatorio."}), 400
+    if len("".join(ch for ch in cpf if ch.isdigit())) < 11:
+        return jsonify({"erro": "Informe um CPF valido."}), 400
+    if not endereco:
+        return jsonify({"erro": "Endereco e obrigatorio."}), 400
+    if not numero:
+        return jsonify({"erro": "Numero e obrigatorio."}), 400
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        INSERT INTO clientes (
+            tipo, nome, razao_social, cpf, cnpj,
+            telefone, whatsapp, email,
+            cep, endereco, numero, bairro, cidade,
+            cep_entrega, endereco_entrega, numero_entrega,
+            bairro_entrega, cidade_entrega,
+            observacoes, data_cadastro
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    """, (
+        "PF",
+        nome,
+        "",
+        cpf,
+        "",
+        telefone,
+        whatsapp,
+        "",
+        "",
+        endereco,
+        numero,
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "Cadastro rapido pelo movimento",
+        datetime.now().strftime("%Y-%m-%d")
+    ))
+
+    conn.commit()
+    cliente_id = cursor.lastrowid
+    conn.close()
+
+    return jsonify({
+        "id": cliente_id,
+        "nome": nome,
+        "telefone": telefone,
+        "whatsapp": whatsapp,
+        "cpf": cpf
+    })
+# ================================================
 #rota para abrir cliente
 #=================================================
 @app.route("/cliente/<int:id>")
@@ -1272,7 +2878,7 @@ def ver_cliente(id):
 # ================================================
 #rota para excluir cliente
 #=================================================
-@app.route("/excluir_cliente/<int:id>")
+@app.route("/excluir_cliente/<int:id>", methods=["POST"])
 def excluir_cliente(id):
     conn = get_db()
     cursor = conn.cursor()
@@ -1373,6 +2979,16 @@ def criar_os():
     defeito_reclamado = dados.get("defeito_reclamado")
     produto_defeito = dados.get("produto_defeito")
     observacao = dados.get("observacao")
+    try:
+        valor_mao_obra = float(dados.get("valor_mao_obra") or 0)
+    except (TypeError, ValueError):
+        valor_mao_obra = 0.0
+    try:
+        quantidade_mao_obra = int(dados.get("quantidade_mao_obra") or 1)
+    except (TypeError, ValueError):
+        quantidade_mao_obra = 1
+    if quantidade_mao_obra < 1:
+        quantidade_mao_obra = 1
 
     conn = get_db()
     cursor = conn.cursor()
@@ -1404,10 +3020,25 @@ def criar_os():
         observacao
     ))
 
-    conn.commit()
-
     # pegar ID da OS criada
     os_id = cursor.lastrowid
+
+    # se veio serviço do PDV, já lança a mão de obra na OS
+    if valor_mao_obra > 0:
+        subtotal_mao_obra = float(valor_mao_obra) * int(quantidade_mao_obra)
+        cursor.execute("""
+            INSERT INTO itens_ordem_servico
+            (os_id, descricao, quantidade, valor, subtotal)
+            VALUES (?, ?, ?, ?, ?)
+        """, (
+            os_id,
+            f"Mao de obra - {servico}",
+            quantidade_mao_obra,
+            float(valor_mao_obra),
+            subtotal_mao_obra
+        ))
+
+    conn.commit()
 
     # buscar cliente
     cursor.execute("""
@@ -1793,8 +3424,15 @@ def ver_ordem(id):
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
+    # buscar ordem de serviço + cliente
     cursor.execute("""
-    SELECT os.*, c.nome, c.telefone, c.endereco, c.numero, c.bairro
+    SELECT os.*, 
+           c.nome,
+           c.telefone,
+           c.endereco,
+           c.numero,
+           c.bairro,
+           c.cidade
     FROM ordem_servico os
     LEFT JOIN clientes c ON os.cliente_id = c.id
     WHERE os.id = ?
@@ -1802,9 +3440,87 @@ def ver_ordem(id):
 
     ordem = cursor.fetchone()
 
+    # buscar itens da ordem
+    cursor.execute("""
+    SELECT *
+    FROM itens_ordem_servico
+    WHERE os_id = ?
+    """, (id,))
+
+    itens = cursor.fetchall()
+
     conn.close()
 
-    return render_template("ver_ordem.html", ordem=ordem)
+    return render_template(
+        "ver_ordem.html",
+        ordem=ordem,
+        itens=itens
+    )
+# ================================================
+#rota editar_os
+#=================================================
+@app.route("/editar_os/<int:id>")
+def editar_os(id):
+
+    conn = get_db()
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM ordem_servico WHERE id=?", (id,))
+    ordem = cursor.fetchone()
+
+    conn.close()
+
+    return render_template("editar_os.html", ordem=ordem)
+
+# ================================================
+#rota para salvar os
+#=================================================
+@app.route("/salvar_os/<int:id>", methods=["POST"])
+def salvar_os(id):
+
+    diagnostico = request.form.get("diagnostico")
+    solucao = request.form.get("solucao")
+    pecas = request.form.get("pecas_trocadas")
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    UPDATE ordem_servico
+    SET diagnostico=?, solucao=?, pecas_trocadas=?
+    WHERE id=?
+    """, (diagnostico, solucao, pecas, id))
+
+    conn.commit()
+    conn.close()
+
+    return redirect(f"/ordem/{id}")
+# ================================================
+#rota para adicionar produto na os
+#=================================================
+@app.route("/adicionar_item_os/<int:os_id>", methods=["POST"])
+def adicionar_item_os(os_id):
+
+    descricao = request.form.get("descricao")
+    quantidade = int(request.form.get("quantidade"))
+    valor = float(request.form.get("valor"))
+
+    subtotal = quantidade * valor
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    INSERT INTO itens_ordem_servico
+    (os_id, descricao, quantidade, valor, subtotal)
+    VALUES (?, ?, ?, ?, ?)
+    """,(os_id, descricao, quantidade, valor, subtotal))
+
+    conn.commit()
+    conn.close()
+
+    return redirect(f"/ordem/{os_id}")
 # ================================================
 #rota gerar_pedido
 #=================================================

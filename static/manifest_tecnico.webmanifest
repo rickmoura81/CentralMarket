@@ -1,0 +1,18 @@
+{
+  "name": "CentralMarket Tecnico",
+  "short_name": "CM Tecnico",
+  "start_url": "/app_tecnico",
+  "scope": "/app_tecnico",
+  "display": "standalone",
+  "background_color": "#f3f7f8",
+  "theme_color": "#0f766e",
+  "description": "Agenda e atendimento externo dos tecnicos.",
+  "icons": [
+    {
+      "src": "/static/icon_tecnico.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

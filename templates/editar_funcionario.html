@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Editar Funcionário</title>
+<style>
+body{font-family:Arial;background:#f4f6f9;margin:0;padding:20px;}
+.container{max-width:900px;margin:auto;}
+.card{background:#fff;padding:20px;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,0.1);}
+form{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+input,select{padding:10px;border:1px solid #ccc;border-radius:4px;}
+.actions{grid-column:span 2;display:flex;gap:10px;}
+button,.btn{padding:10px 14px;border:none;border-radius:4px;cursor:pointer;text-decoration:none;color:#fff;display:inline-block;}
+button{background:#27ae60;}
+.btn{background:#64748b;}
+.full{grid-column:span 2;}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="card">
+<h2>Editar Funcionário #{{ funcionario.id }}</h2>
+
+<form method="POST">
+<input type="text" name="nome" value="{{ funcionario.nome or '' }}" placeholder="Nome" required>
+<input type="text" name="cpf" value="{{ funcionario.cpf or '' }}" placeholder="CPF" required>
+
+<input type="text" name="telefone" value="{{ funcionario.telefone or '' }}" placeholder="Telefone">
+<input type="text" name="whatsapp" value="{{ funcionario.whatsapp or '' }}" placeholder="WhatsApp">
+
+<input type="text" name="email" value="{{ funcionario.email or '' }}" placeholder="Email">
+<select name="cargo">
+<option value="" {% if not funcionario.cargo %}selected{% endif %}>Cargo</option>
+<option value="Tecnico" {% if funcionario.cargo == 'Tecnico' %}selected{% endif %}>Técnico</option>
+<option value="Vendedor" {% if funcionario.cargo == 'Vendedor' %}selected{% endif %}>Vendedor</option>
+<option value="Caixa" {% if funcionario.cargo == 'Caixa' %}selected{% endif %}>Caixa</option>
+<option value="Gerente" {% if funcionario.cargo == 'Gerente' %}selected{% endif %}>Gerente</option>
+<option value="Administrador" {% if funcionario.cargo == 'Administrador' %}selected{% endif %}>Administrador</option>
+</select>
+
+<select name="perfil" required>
+<option value="funcionario" {% if (funcionario.perfil or 'funcionario') == 'funcionario' %}selected{% endif %}>Perfil: Funcionário</option>
+<option value="gerente" {% if funcionario.perfil == 'gerente' %}selected{% endif %}>Perfil: Gerente</option>
+<option value="proprietario" {% if funcionario.perfil == 'proprietario' %}selected{% endif %}>Perfil: Proprietário</option>
+</select>
+<input type="text" name="funcao" value="{{ funcionario.funcao or '' }}" placeholder="Função">
+
+<input type="number" step="0.01" name="comissao" value="{{ funcionario.comissao or '' }}" placeholder="Comissão %">
+<input type="text" name="endereco" value="{{ funcionario.endereco or '' }}" placeholder="Endereço">
+
+<input class="full" type="password" name="senha" placeholder="Nova senha (deixe em branco para manter a atual)">
+
+<div class="actions">
+<button type="submit">Salvar Alterações</button>
+<a class="btn" href="/funcionarios">Cancelar</a>
+</div>
+</form>
+</div>
+</div>
+</body>
+</html>

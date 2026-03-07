@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<title>Editar Ordem de Serviço</title>
+</head>
+
+<body>
+
+<h2>Editar OS #{{ ordem.id }}</h2>
+
+<form method="POST" action="/salvar_os/{{ ordem.id }}">
+
+<h3>Diagnóstico Técnico</h3>
+<textarea name="diagnostico" rows="4" cols="50">{{ ordem.diagnostico }}</textarea>
+
+<h3>Solução Aplicada</h3>
+<textarea name="solucao" rows="4" cols="50">{{ ordem.solucao }}</textarea>
+
+<h3>Peças Trocadas</h3>
+<textarea name="pecas_trocadas" rows="4" cols="50">{{ ordem.pecas_trocadas }}</textarea>
+
+<br><br>
+
+<button type="submit">💾 Salvar</button>
+
+</form>
+
+<br>
+
+<a href="/ordem/{{ ordem.id }}">⬅ Voltar</a>
+
+</body>
+
+</html>

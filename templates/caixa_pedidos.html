@@ -1,112 +1,660 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Pedidos Pendentes</title>
+    <title>Pedidos do Caixa</title>
     <meta charset="UTF-8">
 
     <style>
         body {
-            font-family: Arial;
-            background: #f4f6f9;
-            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #eef2f7;
+            margin: 0;
+            color: #1f2937;
         }
+
+        .wrap {
+            max-width: 1180px;
+            margin: 22px auto;
+            padding: 0 16px;
+        }
+
+        .top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .btn {
+            border: 0;
+            border-radius: 8px;
+            padding: 9px 12px;
+            font-weight: bold;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-back { background: #64748b; color: #fff; }
+        .btn-view { background: #2563eb; color: #fff; }
+        .btn-cancel { background: #c0392b; color: #fff; }
+        .btn-receber { background: #16a34a; color: #fff; }
+        .btn-filter { background: #e2e8f0; color: #0f172a; }
+        .btn-filter.active { background: #0f766e; color: #fff; }
+        .btn-os { background: #7c3aed; color: #fff; }
+
+        .card {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+            padding: 14px;
+            margin-bottom: 14px;
+        }
+
+        .subtitle {
+            margin: 0 0 10px;
+        }
+
+        .kpis {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .kpi {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        .kpi small { color: #64748b; text-transform: uppercase; }
+        .kpi strong { display:block; font-size: 21px; margin-top: 4px; }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            background: white;
+            background: #fff;
+            font-size: 13px;
         }
 
         th {
-            background: #2c3e50;
-            color: white;
-            padding: 10px;
+            background: #1f2937;
+            color: #fff;
+            padding: 9px;
+            text-align: left;
         }
 
         td {
-            padding: 10px;
-            border-bottom: 1px solid #ddd;
-            text-align: center;
+            padding: 9px;
+            border-bottom: 1px solid #e5e7eb;
         }
 
-        tr:hover {
-            background: #f2f2f2;
-        }
-
-        a {
-            text-decoration: none;
-            background: #27ae60;
-            color: white;
-            padding: 6px 10px;
-            border-radius: 4px;
-        }
-
-        /* destaque pedido novo */
         .novo {
-            background-color: #fff3cd;
-            animation: piscar 1s ease-in-out 3;
+            background-color: #fff9db;
+            animation: piscar 1s ease-in-out 2;
         }
 
         @keyframes piscar {
-            0% { background-color: #fff3cd; }
-            50% { background-color: #ffe08a; }
-            100% { background-color: #fff3cd; }
+            0% { background-color: #fff9db; }
+            50% { background-color: #ffe9a8; }
+            100% { background-color: #fff9db; }
+        }
+
+        .status {
+            display: inline-block;
+            border-radius: 999px;
+            padding: 3px 8px;
+            color: #fff;
+            font-size: 11px;
+        }
+
+        .status-pago { background: #16a34a; }
+        .status-cancelado { background: #b91c1c; }
+        .origem {
+            display: inline-block;
+            border-radius: 999px;
+            padding: 3px 8px;
+            font-size: 11px;
+            color: #fff;
+            background: #0f766e;
+        }
+        .origem.os { background: #7c3aed; }
+        .origem.venda { background: #0369a1; }
+
+        .muted {
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        #statusMensagem {
+            color: #b91c1c;
+            font-weight: bold;
+            min-height: 18px;
+            margin: 8px 0;
+        }
+
+        .actions-cell {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .empty {
+            color: #64748b;
+            padding: 8px 0;
+        }
+
+        .modal-bg {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.45);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        .modal {
+            width: 420px;
+            max-width: 92%;
+            background: #fff;
+            border-radius: 10px;
+            padding: 14px;
+            box-shadow: 0 10px 24px rgba(0,0,0,0.2);
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 90px;
+            resize: vertical;
+            margin-top: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            padding: 8px;
+            font-family: Arial, sans-serif;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .btn-gray { background: #6b7280; color: #fff; }
+
+        .modal-lg {
+            width: 680px;
+            max-width: 95%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .mini-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 8px;
+            margin-bottom: 10px;
+            font-size: 12px;
+        }
+
+        .mini-table th, .mini-table td {
+            border-bottom: 1px solid #e5e7eb;
+            padding: 6px;
+        }
+
+        .pay-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .pay-grid select {
+            width: 100%;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            padding: 8px;
+        }
+
+        @media (max-width: 900px) {
+            .actions-cell { flex-direction: column; }
+            .pay-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
 
-<h2>🧾 Pedidos Pendentes</h2>
+<div class="wrap">
+    <div class="top">
+        <h2 style="margin:0;">Pedidos do Caixa</h2>
+        <a href="/caixa" class="btn btn-back">Voltar</a>
+    </div>
 
-<table>
-    <thead>
-        <tr>
-            <th>Pedido</th>
-            <th>Total</th>
-            <th>Ação</th>
-        </tr>
-    </thead>
-    <tbody id="listaPedidos"></tbody>
-</table>
+    <div class="kpis">
+        <div class="kpi">
+            <small>Pendentes</small>
+            <strong id="kpiPendentesQtd">0</strong>
+        </div>
+        <div class="kpi">
+            <small>Total Pendente</small>
+            <strong>R$ <span id="kpiPendentesTotal">0.00</span></strong>
+        </div>
+        <div class="kpi">
+            <small>Fechados (lista)</small>
+            <strong id="kpiFechadosQtd">0</strong>
+        </div>
+    </div>
 
-<br>
-<a href="/">⬅ Voltar</a>
+    <div id="statusMensagem"></div>
+
+    <div class="card" style="margin-bottom:10px;">
+        <strong>Filtro de origem:</strong>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+            <button id="filtroTodos" class="btn btn-filter active" onclick="setFiltroOrigem('TODOS')">Todos</button>
+            <button id="filtroOs" class="btn btn-filter" onclick="setFiltroOrigem('OS')">OS</button>
+            <button id="filtroVenda" class="btn btn-filter" onclick="setFiltroOrigem('VENDA')">Venda</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3 class="subtitle">Pendentes</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Pedido</th>
+                    <th>Origem</th>
+                    <th>Data</th>
+                    <th>Funcionário</th>
+                    <th>Total</th>
+                    <th>Acoes</th>
+                </tr>
+            </thead>
+            <tbody id="listaPedidos"></tbody>
+        </table>
+        <div id="semPendentes" class="empty" style="display:none;">Nenhum pedido pendente.</div>
+    </div>
+
+    <div class="card">
+        <h3 class="subtitle">Pedidos Ja Fechados</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Pedido</th>
+                    <th>Origem</th>
+                    <th>Status</th>
+                    <th>Funcionário</th>
+                    <th>Forma</th>
+                    <th>Total</th>
+                    <th>Detalhe</th>
+                </tr>
+            </thead>
+            <tbody id="listaFechados"></tbody>
+        </table>
+        <div id="semFechados" class="empty" style="display:none;">Sem pedidos fechados para mostrar.</div>
+    </div>
+</div>
+
+<div id="modalCancelamento" class="modal-bg">
+    <div class="modal">
+        <h3 style="margin:0;">Cancelar Pedido <span id="pedidoCancelamentoId"></span></h3>
+        <p class="muted" style="margin:8px 0 0;">Informe a razao do cancelamento.</p>
+        <textarea id="motivoCancelamento" placeholder="Ex: cliente desistiu, erro no pedido, item sem estoque..."></textarea>
+        <div class="modal-actions">
+            <button class="btn btn-gray" onclick="fecharModalCancelamento()">Fechar</button>
+            <button class="btn btn-cancel" onclick="confirmarCancelamento()">Confirmar Cancelamento</button>
+        </div>
+    </div>
+</div>
+
+<div id="modalReceber" class="modal-bg">
+    <div class="modal modal-lg">
+        <h3 style="margin:0;">Receber Pedido <span id="pedidoReceberId"></span></h3>
+        <p id="resumoPedidoReceber" class="muted" style="margin:8px 0;"></p>
+
+        <table class="mini-table">
+            <thead>
+                <tr>
+                    <th>Item</th>
+                    <th>Qtd</th>
+                    <th>Preco</th>
+                    <th>Subtotal</th>
+                </tr>
+            </thead>
+            <tbody id="itensPedidoReceber"></tbody>
+        </table>
+
+        <div class="pay-grid">
+            <div>
+                <label class="muted">Forma de pagamento</label>
+                <select id="formaPagamentoReceber" onchange="toggleBandeira()">
+                    <option value="DINHEIRO">Dinheiro</option>
+                    <option value="PIX">PIX</option>
+                    <option value="CARTAO">Cartao</option>
+                </select>
+            </div>
+            <div id="boxBandeiraReceber" style="display:none;">
+                <label class="muted">Bandeira</label>
+                <select id="bandeiraReceber">
+                    <option value="">Nao informado</option>
+                    <option value="VISA">VISA</option>
+                    <option value="MASTERCARD">MASTERCARD</option>
+                    <option value="ELO">ELO</option>
+                    <option value="HIPERCARD">HIPERCARD</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="boxDinheiroReceber" style="display:block;margin-top:8px;">
+            <label class="muted">Valor recebido (dinheiro)</label>
+            <input id="valorRecebidoReceber" type="number" min="0" step="0.01" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;" placeholder="0,00" oninput="atualizarTrocoPreview()">
+            <div class="muted" style="margin-top:6px;">Troco: R$ <strong id="trocoPreview">0.00</strong></div>
+        </div>
+
+        <div id="statusReceber" style="color:#b91c1c;font-weight:bold;margin-top:10px;"></div>
+
+        <div class="modal-actions">
+            <button class="btn btn-gray" onclick="fecharModalReceber()">Fechar</button>
+            <button class="btn btn-receber" onclick="confirmarRecebimento()">Confirmar Recebimento</button>
+        </div>
+    </div>
+</div>
 
 <script>
 let pedidosAnteriores = [];
+let pedidoParaCancelar = null;
+let pedidoParaReceber = null;
+let totalPedidoReceberAtual = 0;
+let filtroOrigem = "TODOS";
+
+function moeda(v) {
+    return Number(v || 0).toFixed(2);
+}
+
+function setStatus(msg, erro = false) {
+    const el = document.getElementById("statusMensagem");
+    el.style.color = erro ? "#b91c1c" : "#0f766e";
+    el.innerText = msg || "";
+}
+
+function setFiltroOrigem(origem) {
+    filtroOrigem = origem;
+    document.getElementById("filtroTodos").classList.toggle("active", origem === "TODOS");
+    document.getElementById("filtroOs").classList.toggle("active", origem === "OS");
+    document.getElementById("filtroVenda").classList.toggle("active", origem === "VENDA");
+    carregarPedidos();
+}
+
+function aplicarFiltroOrigem(lista) {
+    if (filtroOrigem === "TODOS") return lista || [];
+    return (lista || []).filter(p => String(p.origem || "").toUpperCase() === filtroOrigem);
+}
+
+function abrirModalCancelamento(id) {
+    pedidoParaCancelar = id;
+    document.getElementById("pedidoCancelamentoId").innerText = "#" + id;
+    document.getElementById("motivoCancelamento").value = "";
+    document.getElementById("modalCancelamento").style.display = "flex";
+}
+
+function fecharModalCancelamento() {
+    pedidoParaCancelar = null;
+    document.getElementById("modalCancelamento").style.display = "none";
+}
+
+function confirmarCancelamento() {
+    const motivo = document.getElementById("motivoCancelamento").value.trim();
+    if (!pedidoParaCancelar) return;
+
+    if (motivo.length < 3) {
+        alert("Informe a razao do cancelamento");
+        return;
+    }
+
+    fetch(`/cancelar_pedido/${pedidoParaCancelar}`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ motivo_cancelamento: motivo })
+    })
+    .then(async res => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.erro || "Falha ao cancelar pedido");
+        return data;
+    })
+    .then(() => {
+        setStatus("Pedido cancelado com sucesso.");
+        fecharModalCancelamento();
+        carregarPedidos();
+    })
+    .catch(err => {
+        setStatus(err.message || "Falha ao cancelar pedido", true);
+    });
+}
+
+function abrirModalReceber(id) {
+    pedidoParaReceber = id;
+    const modal = document.getElementById("modalReceber");
+    const resumo = document.getElementById("resumoPedidoReceber");
+    const itensBody = document.getElementById("itensPedidoReceber");
+    const status = document.getElementById("statusReceber");
+
+    document.getElementById("pedidoReceberId").innerText = "#" + id;
+    resumo.innerHTML = "<span class='muted'>Carregando detalhes...</span>";
+    itensBody.innerHTML = "";
+    status.innerText = "";
+    totalPedidoReceberAtual = 0;
+    document.getElementById("valorRecebidoReceber").value = "";
+    document.getElementById("trocoPreview").innerText = "0.00";
+    toggleBandeira();
+    modal.style.display = "flex";
+
+    fetch(`/pedido_detalhes/${id}`)
+    .then(async res => {
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.erro || "Falha ao carregar pedido");
+        return data;
+    })
+    .then(data => {
+        const pedido = data.pedido;
+        const itens = data.itens || [];
+        totalPedidoReceberAtual = Number(pedido.total || 0);
+        resumo.innerHTML = `Data: ${pedido.data || "-"} | Total: <strong>R$ ${moeda(pedido.total)}</strong>`;
+        if(pedido.funcionario_id){
+            resumo.innerHTML += ` | Funcionario: #${pedido.funcionario_id}${pedido.funcionario_nome ? " - " + pedido.funcionario_nome : ""}`;
+        }
+        if(Number(pedido.desconto_valor || 0) > 0){
+            resumo.innerHTML += ` | Desconto: R$ ${moeda(pedido.desconto_valor)} ${pedido.desconto_tipo ? "(" + pedido.desconto_tipo + ")" : ""}`;
+        }
+
+        if (itens.length === 0) {
+            itensBody.innerHTML = "<tr><td colspan='4'>Sem itens.</td></tr>";
+            return;
+        }
+
+        itensBody.innerHTML = itens.map(i => `
+            <tr>
+                <td>${i.nome}</td>
+                <td>${i.quantidade}</td>
+                <td>R$ ${moeda(i.preco_unitario)}</td>
+                <td>R$ ${moeda(i.subtotal)}</td>
+            </tr>
+        `).join("");
+    })
+    .catch(err => {
+        resumo.innerHTML = "";
+        status.innerText = err.message || "Falha ao carregar detalhes";
+    });
+}
+
+function fecharModalReceber() {
+    pedidoParaReceber = null;
+    document.getElementById("modalReceber").style.display = "none";
+}
+
+function toggleBandeira() {
+    const forma = document.getElementById("formaPagamentoReceber").value;
+    const box = document.getElementById("boxBandeiraReceber");
+    const boxDinheiro = document.getElementById("boxDinheiroReceber");
+    box.style.display = forma === "CARTAO" ? "block" : "none";
+    boxDinheiro.style.display = forma === "DINHEIRO" ? "block" : "none";
+    atualizarTrocoPreview();
+}
+
+function atualizarTrocoPreview() {
+    const recebido = Number(document.getElementById("valorRecebidoReceber").value || 0);
+    const troco = Math.max(0, recebido - totalPedidoReceberAtual);
+    document.getElementById("trocoPreview").innerText = troco.toFixed(2);
+}
+
+function confirmarRecebimento() {
+    if (!pedidoParaReceber) return;
+
+    const forma = document.getElementById("formaPagamentoReceber").value;
+    const bandeira = document.getElementById("bandeiraReceber").value;
+    const valorRecebido = Number(document.getElementById("valorRecebidoReceber").value || 0);
+    const status = document.getElementById("statusReceber");
+
+    if (forma === "DINHEIRO" && valorRecebido <= 0) {
+        status.innerText = "Informe o valor recebido em dinheiro.";
+        return;
+    }
+
+    fetch(`/pagar_pedido/${pedidoParaReceber}`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            forma_pagamento: forma,
+            bandeira: bandeira,
+            valor_recebido: valorRecebido
+        })
+    })
+    .then(async res => {
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.erro || "Falha ao receber pedido");
+        return data;
+    })
+    .then(data => {
+        let msg = "Pedido recebido com sucesso.";
+        if (forma === "DINHEIRO") {
+            msg += ` Troco: R$ ${Number(data.troco || 0).toFixed(2)}`;
+        }
+        setStatus(msg);
+        fecharModalReceber();
+        carregarPedidos();
+        if (data.cupom_url) window.open(data.cupom_url, "_blank");
+    })
+    .catch(err => {
+        status.innerText = err.message || "Falha ao receber pedido";
+    });
+}
+
+function renderPendentes(lista) {
+    const tbody = document.getElementById("listaPedidos");
+    const empty = document.getElementById("semPendentes");
+
+    tbody.innerHTML = "";
+    if (!lista || lista.length === 0) {
+        empty.style.display = "block";
+        return;
+    }
+
+    empty.style.display = "none";
+
+    lista.forEach(p => {
+        const novo = !pedidosAnteriores.includes(p.id);
+        const classe = novo ? "novo" : "";
+        const origem = String(p.origem || "VENDA").toUpperCase();
+        const origemClass = origem === "OS" ? "os" : "venda";
+        const btnOs = (origem === "OS" && p.os_id)
+            ? `<a class="btn btn-os" href="/ordem/${p.os_id}" target="_blank">Ver OS</a>`
+            : "";
+
+        tbody.innerHTML += `
+            <tr class="${classe}">
+                <td>#${p.id}</td>
+                <td><span class="origem ${origemClass}">${origem}</span></td>
+                <td>${p.data || "-"}</td>
+                <td>#${p.funcionario_id || "-"} ${p.funcionario_nome || ""}</td>
+                <td>R$ ${moeda(p.total)}</td>
+                <td>
+                    <div class="actions-cell">
+                        ${btnOs}
+                        <button class="btn btn-receber" onclick="abrirModalReceber(${p.id})">Receber</button>
+                        <button class="btn btn-cancel" onclick="abrirModalCancelamento(${p.id})">Cancelar</button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+}
+
+function renderFechados(lista) {
+    const tbody = document.getElementById("listaFechados");
+    const empty = document.getElementById("semFechados");
+
+    tbody.innerHTML = "";
+    if (!lista || lista.length === 0) {
+        empty.style.display = "block";
+        return;
+    }
+
+    empty.style.display = "none";
+
+    lista.forEach(p => {
+        const isCancelado = p.status === "CANCELADO";
+        const statusClass = isCancelado ? "status-cancelado" : "status-pago";
+        const forma = p.forma_pagamento || "-";
+        const origem = String(p.origem || "VENDA").toUpperCase();
+        const origemClass = origem === "OS" ? "os" : "venda";
+        const detalhe = isCancelado
+            ? `${p.data_cancelamento || ""} ${p.motivo_cancelamento ? "- " + p.motivo_cancelamento : ""}`
+            : (p.data || "");
+
+        tbody.innerHTML += `
+            <tr>
+                <td>#${p.id}</td>
+                <td><span class="origem ${origemClass}">${origem}</span></td>
+                <td><span class="status ${statusClass}">${p.status}</span></td>
+                <td>#${p.funcionario_id || "-"} ${p.funcionario_nome || ""}</td>
+                <td>${forma}</td>
+                <td>R$ ${moeda(p.total)}</td>
+                <td>${detalhe}</td>
+            </tr>
+        `;
+    });
+}
+
+function atualizarKpis(pendentes, fechados) {
+    const pendTotal = (pendentes || []).reduce((sum, p) => sum + Number(p.total || 0), 0);
+    document.getElementById("kpiPendentesQtd").innerText = (pendentes || []).length;
+    document.getElementById("kpiPendentesTotal").innerText = moeda(pendTotal);
+    document.getElementById("kpiFechadosQtd").innerText = (fechados || []).length;
+}
 
 function carregarPedidos() {
     fetch("/pedidos_pendentes")
     .then(res => res.json())
     .then(data => {
+        const pendentes = data.pedidos || [];
+        const fechados = data.fechados || [];
+        const pendentesFiltrados = aplicarFiltroOrigem(pendentes);
+        const fechadosFiltrados = aplicarFiltroOrigem(fechados);
 
-        const tbody = document.getElementById("listaPedidos");
-        tbody.innerHTML = "";
+        renderPendentes(pendentesFiltrados);
+        renderFechados(fechadosFiltrados);
+        atualizarKpis(pendentes, fechados);
 
-        data.pedidos.forEach(p => {
-
-            const novo = !pedidosAnteriores.includes(p.id);
-            const classe = novo ? "novo" : "";
-
-            tbody.innerHTML += `
-                <tr class="${classe}">
-                    <td>${p.id}</td>
-                    <td>R$ ${parseFloat(p.total).toFixed(2)}</td>
-                    <td>
-                        <a href="/ver_pedido/${p.id}">Ver</a>
-                    </td>
-                </tr>
-            `;
-        });
-
-        pedidosAnteriores = data.pedidos.map(p => p.id);
+        pedidosAnteriores = pendentes.map(p => p.id);
+    })
+    .catch(() => {
+        setStatus("Nao foi possivel atualizar os pedidos agora.", true);
     });
 }
 
-// atualiza automaticamente
 setInterval(carregarPedidos, 4000);
-
-// carrega ao abrir a página
 carregarPedidos();
 </script>
 

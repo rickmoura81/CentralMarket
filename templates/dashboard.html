@@ -3,8 +3,50 @@
 {% block content %}
 
 <div class="card">
-    <h2>Dashboard</h2>
-    <p>Bem-vindo ao CentralMarket ERP 🚀</p>
+    <h2>Central de Controle</h2>
+    <p>Use os atalhos abaixo para gerenciar as áreas principais do sistema.</p>
+</div>
+
+<div class="quick-grid">
+    <div class="card">
+        <h3>Vendas e Caixa</h3>
+        <div class="actions">
+            <a class="btn-link" href="/movimento/1">Abrir PDV</a>
+            <a class="btn-link" href="/caixa">Abrir/Fechar Caixa</a>
+            <a class="btn-link" href="/painel_caixa">Painel do Caixa</a>
+            <a class="btn-link" href="/caixa_pedidos">Pedidos para Receber</a>
+            <a class="btn-link" href="/loja_config">Dados da Loja no Cupom</a>
+            <a class="btn-link" href="/config_descontos">Configurar Descontos</a>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Clientes e Equipe</h3>
+        <div class="actions">
+            <a class="btn-link" href="/clientes">Gerenciar Clientes</a>
+            <a class="btn-link" href="/funcionarios">Gerenciar Funcionários</a>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Produtos e Estoque</h3>
+        <div class="actions">
+            <a class="btn-link" href="/categorias">Categorias</a>
+            <a class="btn-link" href="/fornecedores">Fornecedores</a>
+            <a class="btn-link" href="/produtos">Produtos e Serviços</a>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Assistência Técnica</h3>
+        <div class="actions">
+            <a class="btn-link" href="/ordens_servico">Ordens de Serviço</a>
+            <a class="btn-link" href="/app_tecnico">App Técnico (Android)</a>
+            <a class="btn-link" href="/agenda">Agenda Calendário</a>
+            <a class="btn-link" href="/agenda_dia">Agenda do Dia</a>
+            <a class="btn-link" href="/agenda_semana">Agenda da Semana</a>
+        </div>
+    </div>
 </div>
 
 {% endblock %}

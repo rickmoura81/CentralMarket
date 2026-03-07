@@ -154,10 +154,72 @@ margin-left:6px;
 Total: R$ <span id="totalGeral">0.00</span>
 </div>
 
-<button class="btn" onclick="gerarPedido()">Gerar Pedido</button>
+<button class="btn" onclick="abrirModalFinalizacao()">Gerar Pedido</button>
 
 </div>
 
+</div>
+
+<!-- MODAL FINALIZACAO PEDIDO -->
+<div id="modalFinalizacao" style="
+display:none;
+position:fixed;
+top:0;
+left:0;
+width:100%;
+height:100%;
+background:rgba(0,0,0,0.45);
+z-index:20;
+">
+<div style="
+background:white;
+width:430px;
+max-width:95%;
+margin:40px auto;
+padding:20px;
+border-radius:10px;
+box-shadow:0 6px 14px rgba(0,0,0,0.25);
+font-family:Arial;
+max-height:90vh;
+overflow-y:auto;
+">
+<h3 style="margin:0 0 10px 0;text-align:center;">Finalização do Pedido</h3>
+
+<input type="number" id="funcionarioId" placeholder="ID do Funcionário" min="1">
+<input type="password" id="funcionarioSenha" placeholder="Senha do Funcionário">
+
+<div style="display:flex;gap:8px;">
+    <select id="descontoTipo" onchange="atualizarResumoFinalizacao()">
+        <option value="valor">Desconto por valor (R$)</option>
+        <option value="percentual">Desconto por porcentagem (%)</option>
+    </select>
+    <input type="number" id="descontoValor" min="0" step="0.01" value="0" placeholder="Desconto" oninput="atualizarResumoFinalizacao()">
+</div>
+
+<div id="blocoAutorizacao" style="display:none;">
+    <input type="number" id="autorizadorId" placeholder="ID gerente/proprietário (se necessário)" min="1">
+    <input type="password" id="autorizadorSenha" placeholder="Senha gerente/proprietário (se necessário)">
+</div>
+
+<div style="font-size:13px;line-height:1.6;margin-top:8px;">
+    <div>Total bruto: R$ <strong id="totalBrutoResumo">0.00</strong></div>
+    <div>Desconto: R$ <strong id="descontoResumo">0.00</strong></div>
+    <div>Total final: R$ <strong id="totalFinalResumo">0.00</strong></div>
+</div>
+
+<div id="statusFinalizacao" style="color:#c0392b;font-size:13px;font-weight:bold;min-height:18px;margin-top:6px;"></div>
+
+<div style="display:flex;gap:10px;margin-top:12px;">
+    <button onclick="confirmarFinalizacaoPedido()" style="
+    flex:1;padding:10px;background:#27ae60;color:white;border:none;border-radius:6px;cursor:pointer;">
+    Confirmar Pedido
+    </button>
+    <button onclick="fecharModalFinalizacao()" style="
+    flex:1;padding:10px;background:#7f8c8d;color:white;border:none;border-radius:6px;cursor:pointer;">
+    Fechar
+    </button>
+</div>
+</div>
 </div>
 
 <!-- MODAL AGENDAMENTO -->
@@ -175,17 +237,37 @@ background:rgba(0,0,0,0.4);
 <div style="
 background:white;
 width:380px;
-margin:120px auto;
+margin:40px auto;
 padding:25px;
 border-radius:10px;
 box-shadow:0 4px 10px rgba(0,0,0,0.2);
 font-family:Arial;
+max-height:85vh;
+overflow-y:auto;
 ">
 
 <h3 style="margin-top:0;text-align:center;">📅 Agendar Serviço</h3>
 
 <label>Cliente</label>
-<select id="clienteSelecionado" style="width:100%;padding:8px;margin-bottom:10px;"></select>
+<input type="text" id="buscaClienteAgendamento" style="width:100%;padding:8px;margin-bottom:8px;" placeholder="Digite nome, telefone, CPF ou CNPJ">
+<div id="clienteSelecionadoInfo" style="font-size:13px;color:#2c3e50;margin-bottom:8px;"></div>
+<ul id="resultadoBuscaCliente" style="list-style:none;padding:0;margin:0 0 10px 0;max-height:120px;overflow-y:auto;border:1px solid #eee;border-radius:6px;"></ul>
+<button type="button" id="btnCadastrarCliente" style="display:none;width:100%;padding:8px;margin-bottom:10px;background:#2980b9;color:white;border:none;border-radius:6px;cursor:pointer;">
+Cadastrar cliente
+</button>
+<div id="cadastroClienteRapidoBox" style="display:none;border:1px solid #ddd;border-radius:8px;padding:10px;margin-bottom:12px;background:#fcfcfc;">
+<div style="font-weight:bold;margin-bottom:8px;">Novo cliente rapido</div>
+<input type="text" id="novoClienteNome" style="width:100%;padding:8px;margin-bottom:8px;" placeholder="Nome do cliente">
+<input type="text" id="novoClienteCpf" style="width:100%;padding:8px;margin-bottom:8px;" placeholder="CPF (obrigatorio)">
+<input type="text" id="novoClienteTelefone" style="width:100%;padding:8px;margin-bottom:8px;" placeholder="Telefone">
+<input type="text" id="novoClienteWhatsapp" style="width:100%;padding:8px;margin-bottom:8px;" placeholder="WhatsApp">
+<input type="text" id="novoClienteEndereco" style="width:100%;padding:8px;margin-bottom:8px;" placeholder="Endereco (obrigatorio)">
+<input type="text" id="novoClienteNumero" style="width:100%;padding:8px;margin-bottom:8px;" placeholder="Numero (obrigatorio)">
+<div style="display:flex;gap:8px;">
+<button type="button" id="btnSalvarClienteRapido" style="flex:1;padding:8px;background:#27ae60;color:white;border:none;border-radius:6px;cursor:pointer;">Salvar</button>
+<button type="button" id="btnCancelarClienteRapido" style="flex:1;padding:8px;background:#7f8c8d;color:white;border:none;border-radius:6px;cursor:pointer;">Cancelar</button>
+</div>
+</div>
 
 <label>Técnico</label>
 <select id="tecnicoSelecionado" style="width:100%;padding:8px;margin-bottom:10px;"></select>
@@ -195,6 +277,18 @@ font-family:Arial;
 
 <label>Hora</label>
 <input type="time" id="horaAgendamento" style="width:100%;padding:8px;margin-bottom:20px;">
+
+<label>Defeito reclamado</label>
+<textarea id="defeitoReclamado" rows="3" style="width:100%;padding:8px;margin-bottom:10px;resize:vertical;" placeholder="Ex: não liga, tela sem imagem, barulho no motor..."></textarea>
+
+<label>Descrição do produto</label>
+<input type="text" id="produtoDefeito" style="width:100%;padding:8px;margin-bottom:20px;" placeholder="Ex: Geladeira Brastemp BRM44, TV Samsung 50...">
+
+<div id="agendaTecnicoBox" style="display:none;margin-bottom:20px;border:1px solid #ddd;border-radius:8px;padding:10px;background:#fafafa;">
+<div style="font-weight:bold;margin-bottom:8px;">Agenda do técnico no dia</div>
+<div id="agendaTecnicoVazio" style="color:#7f8c8d;">Nenhum agendamento encontrado para este dia.</div>
+<ul id="agendaTecnicoLista" style="margin:0;padding-left:18px;max-height:120px;overflow-y:auto;"></ul>
+</div>
 
 <div style="display:flex;gap:10px;">
 
@@ -231,6 +325,42 @@ Cancelar
 
 let carrinho=[]
 let servicoSelecionado=null
+let servicoSelecionadoDetalhe=null
+let horariosOcupados=[]
+let clienteSelecionadoId=""
+
+function calcularDesconto(totalBruto){
+    const tipo = document.getElementById("descontoTipo")?.value || "valor"
+    const valorInput = parseFloat(document.getElementById("descontoValor")?.value || 0)
+    let desconto = 0
+
+    if(valorInput > 0){
+        if(tipo === "percentual"){
+            desconto = totalBruto * (valorInput / 100)
+        }else{
+            desconto = valorInput
+        }
+    }
+
+    if(desconto > totalBruto) desconto = totalBruto
+    if(desconto < 0 || Number.isNaN(desconto)) desconto = 0
+    return desconto
+}
+
+function atualizarResumoFinalizacao(){
+    const totalBruto = carrinho.reduce((sum, item) => sum + (item.quantidade * item.preco), 0)
+    const desconto = calcularDesconto(totalBruto)
+    const totalFinal = totalBruto - desconto
+
+    document.getElementById("totalBrutoResumo").innerText = totalBruto.toFixed(2)
+    document.getElementById("descontoResumo").innerText = desconto.toFixed(2)
+    document.getElementById("totalFinalResumo").innerText = totalFinal.toFixed(2)
+
+    const bloco = document.getElementById("blocoAutorizacao")
+    if(bloco){
+        bloco.style.display = desconto > 0 ? "block" : "none"
+    }
+}
 
 // =============================
 // ATUALIZAR CARRINHO
@@ -281,6 +411,7 @@ ${item.tipo==="servico" ? '<span class="servico-tag">Serviço</span>' : ''}
 })
 
 document.getElementById("totalGeral").innerText=total.toFixed(2)
+atualizarResumoFinalizacao()
 
 }
 
@@ -349,8 +480,14 @@ if(prod.tipo==="servico"){
 if(confirm("Deseja agendar este serviço?")){
 
 servicoSelecionado=prod.nome
+servicoSelecionadoDetalhe={
+nome: prod.nome,
+preco: Number(prod.preco || 0),
+quantidade: Number(qtd || 1)
+}
 
 document.getElementById("modalAgendamento").style.display="block"
+carregarAgendaTecnico()
 
 }
 
@@ -377,13 +514,20 @@ ul.appendChild(li)
 // =============================
 function confirmarAgendamento(){
 
-    let cliente = document.getElementById("clienteSelecionado").value
+    let cliente = clienteSelecionadoId
     let tecnico = document.getElementById("tecnicoSelecionado").value
     let data = document.getElementById("dataAgendamento").value
     let hora = document.getElementById("horaAgendamento").value
+    let defeitoReclamado = document.getElementById("defeitoReclamado").value.trim()
+    let produtoDefeito = document.getElementById("produtoDefeito").value.trim()
 
     if(!cliente){
         alert("Selecione um cliente")
+        return
+    }
+
+    if(!tecnico){
+        alert("Selecione um técnico")
         return
     }
 
@@ -397,6 +541,18 @@ function confirmarAgendamento(){
         return
     }
 
+    if(!defeitoReclamado && !produtoDefeito){
+        alert("Preencha o defeito reclamado ou a descrição do produto")
+        return
+    }
+
+    if(horariosOcupados.includes(hora)){
+        const confirmarConflito = confirm("Este técnico já possui agendamento nesse horário. Deseja confirmar mesmo assim?")
+        if(!confirmarConflito){
+            return
+        }
+    }
+
     fetch("/criar_os",{
         method:"POST",
         headers:{
@@ -407,7 +563,11 @@ function confirmarAgendamento(){
             cliente_id: cliente,
             tecnico_id: tecnico,
             data: data,
-            hora: hora
+            hora: hora,
+            defeito_reclamado: defeitoReclamado,
+            produto_defeito: produtoDefeito,
+            valor_mao_obra: servicoSelecionadoDetalhe ? Number(servicoSelecionadoDetalhe.preco || 0) : 0,
+            quantidade_mao_obra: servicoSelecionadoDetalhe ? Number(servicoSelecionadoDetalhe.quantidade || 1) : 1
         })
     })
     .then(res => res.json())
@@ -433,6 +593,79 @@ function confirmarAgendamento(){
 function fecharModal(){
 
 document.getElementById("modalAgendamento").style.display="none"
+document.getElementById("agendaTecnicoBox").style.display="none"
+document.getElementById("agendaTecnicoLista").innerHTML=""
+document.getElementById("agendaTecnicoVazio").innerText="Nenhum agendamento encontrado para este dia."
+document.getElementById("buscaClienteAgendamento").value=""
+document.getElementById("resultadoBuscaCliente").innerHTML=""
+document.getElementById("clienteSelecionadoInfo").innerText=""
+document.getElementById("btnCadastrarCliente").style.display="none"
+document.getElementById("cadastroClienteRapidoBox").style.display="none"
+document.getElementById("novoClienteNome").value=""
+document.getElementById("novoClienteCpf").value=""
+document.getElementById("novoClienteTelefone").value=""
+document.getElementById("novoClienteWhatsapp").value=""
+document.getElementById("novoClienteEndereco").value=""
+document.getElementById("novoClienteNumero").value=""
+document.getElementById("defeitoReclamado").value=""
+document.getElementById("produtoDefeito").value=""
+clienteSelecionadoId=""
+horariosOcupados=[]
+servicoSelecionadoDetalhe=null
+
+}
+
+// =============================
+// AGENDA DO TECNICO
+// =============================
+function carregarAgendaTecnico(){
+
+const tecnico = document.getElementById("tecnicoSelecionado").value
+const data = document.getElementById("dataAgendamento").value
+const box = document.getElementById("agendaTecnicoBox")
+const lista = document.getElementById("agendaTecnicoLista")
+const vazio = document.getElementById("agendaTecnicoVazio")
+
+horariosOcupados = []
+lista.innerHTML = ""
+
+if(!tecnico || !data){
+    box.style.display = "none"
+    return
+}
+
+box.style.display = "block"
+vazio.innerText = "Carregando agenda..."
+
+fetch(`/eventos_agenda?tecnico=${encodeURIComponent(tecnico)}`)
+.then(res => res.json())
+.then(eventos => {
+    const agendaDia = eventos.filter(ev => (ev.start || "").startsWith(data))
+
+    agendaDia.sort((a,b) => (a.start || "").localeCompare(b.start || ""))
+
+    if(agendaDia.length === 0){
+        vazio.innerText = "Nenhum agendamento encontrado para este dia."
+        return
+    }
+
+    vazio.innerText = ""
+
+    agendaDia.forEach(ev => {
+        const horaEvento = ((ev.start || "").split("T")[1] || "").slice(0,5)
+        if(horaEvento){
+            horariosOcupados.push(horaEvento)
+        }
+
+        const li = document.createElement("li")
+        const cliente = ev.cliente || "Cliente não informado"
+        li.innerText = `${horaEvento || "Sem hora"} - ${ev.title} (${cliente})`
+        lista.appendChild(li)
+    })
+})
+.catch(() => {
+    vazio.innerText = "Não foi possível carregar a agenda agora."
+})
 
 }
 
@@ -440,7 +673,7 @@ document.getElementById("modalAgendamento").style.display="none"
 // GERAR PEDIDO
 // =============================
 
-function gerarPedido(){
+function abrirModalFinalizacao(){
 
 if(carrinho.length===0){
 
@@ -450,26 +683,84 @@ return
 
 }
 
+document.getElementById("statusFinalizacao").innerText=""
+atualizarResumoFinalizacao()
+document.getElementById("modalFinalizacao").style.display="block"
+
+}
+
+function fecharModalFinalizacao(){
+document.getElementById("modalFinalizacao").style.display="none"
+}
+
+function confirmarFinalizacaoPedido(){
+
+const funcionarioId = document.getElementById("funcionarioId").value.trim()
+const funcionarioSenha = document.getElementById("funcionarioSenha").value
+const descontoTipo = document.getElementById("descontoTipo").value
+const descontoValor = parseFloat(document.getElementById("descontoValor").value || 0)
+const autorizadorId = document.getElementById("autorizadorId").value.trim()
+const autorizadorSenha = document.getElementById("autorizadorSenha").value
+const statusFinalizacao = document.getElementById("statusFinalizacao")
+
+if(!funcionarioId){
+    statusFinalizacao.innerText = "Informe o ID do funcionário"
+    return
+}
+
+if(!funcionarioSenha){
+    statusFinalizacao.innerText = "Informe a senha do funcionário"
+    return
+}
+statusFinalizacao.innerText = ""
+
 fetch("/gerar_pedido",{
 
 method:"POST",
 
 headers:{"Content-Type":"application/json"},
-
-body:JSON.stringify({itens:carrinho})
+body:JSON.stringify({
+    itens:carrinho,
+    funcionario_id: funcionarioId,
+    funcionario_senha: funcionarioSenha,
+    desconto_tipo: descontoTipo,
+    desconto_valor: descontoValor,
+    autorizador_id: autorizadorId,
+    autorizador_senha: autorizadorSenha
+})
 
 })
 
-.then(res=>res.json())
+.then(async res=>{
+    const data = await res.json()
+    if(!res.ok || data.ok === false){
+        throw new Error(data.erro || "Falha ao gerar pedido")
+    }
+    return data
+})
 
 .then(data=>{
 
-alert("Pedido enviado ao caixa Nº "+data.pedido_id)
+alert(
+`Pedido enviado ao caixa Nº ${data.pedido_id}
+Total bruto: R$ ${Number(data.total_bruto || 0).toFixed(2)}
+Desconto: R$ ${Number(data.desconto_valor || 0).toFixed(2)}
+Total final: R$ ${Number(data.total_final || 0).toFixed(2)}`
+)
 
 carrinho=[]
+document.getElementById("funcionarioId").value=""
+document.getElementById("funcionarioSenha").value=""
+document.getElementById("autorizadorSenha").value=""
+document.getElementById("descontoValor").value="0"
+document.getElementById("autorizadorId").value=""
+fecharModalFinalizacao()
 
 atualizarCarrinho()
 
+})
+.catch(err=>{
+    statusFinalizacao.innerText = err.message || "Falha ao gerar pedido"
 })
 
 }
@@ -485,6 +776,11 @@ fetch("/listar_tecnicos")
 let select = document.getElementById("tecnicoSelecionado")
 
 select.innerHTML = ""
+
+let first = document.createElement("option")
+first.value = ""
+first.text = "Selecione um técnico"
+select.appendChild(first)
 
 data.forEach(t=>{
 
@@ -504,34 +800,140 @@ select.appendChild(option)
 carregarTecnicos()
 
 // =============================
-// Carregar técnicos automaticamente
+// Busca inteligente de cliente
 // =============================
-function carregarClientes(){
-
-fetch("/listar_clientes")
-.then(res => res.json())
-.then(data => {
-
-let select = document.getElementById("clienteSelecionado")
-
-select.innerHTML = ""
-
-data.forEach(c => {
-
-let option = document.createElement("option")
-
-option.value = c.id
-option.text = c.nome
-
-select.appendChild(option)
-
-})
-
-})
-
+function selecionarCliente(cliente){
+    clienteSelecionadoId = String(cliente.id)
+    const info = `${cliente.nome} (${cliente.telefone || "sem telefone"})`
+    document.getElementById("clienteSelecionadoInfo").innerText = `Selecionado: ${info}`
+    document.getElementById("buscaClienteAgendamento").value = cliente.nome
+    document.getElementById("resultadoBuscaCliente").innerHTML = ""
+    document.getElementById("btnCadastrarCliente").style.display = "none"
+    document.getElementById("cadastroClienteRapidoBox").style.display = "none"
 }
 
-carregarClientes()
+function buscarClientesInteligente(){
+    const termo = document.getElementById("buscaClienteAgendamento").value.trim()
+    const lista = document.getElementById("resultadoBuscaCliente")
+    const btnCadastro = document.getElementById("btnCadastrarCliente")
+
+    clienteSelecionadoId = ""
+    document.getElementById("clienteSelecionadoInfo").innerText = ""
+    lista.innerHTML = ""
+    btnCadastro.style.display = "none"
+
+    if(termo.length < 2){
+        return
+    }
+
+    fetch(`/buscar_cliente?q=${encodeURIComponent(termo)}`)
+    .then(res => res.json())
+    .then(clientes => {
+        if(!clientes || clientes.length === 0){
+            const li = document.createElement("li")
+            li.style.padding = "8px"
+            li.style.color = "#7f8c8d"
+            li.innerText = "Nenhum cliente encontrado."
+            lista.appendChild(li)
+            btnCadastro.style.display = "block"
+            btnCadastro.onclick = () => {
+                document.getElementById("cadastroClienteRapidoBox").style.display = "block"
+                document.getElementById("novoClienteNome").value = termo
+                document.getElementById("novoClienteCpf").value = ""
+                document.getElementById("novoClienteTelefone").value = ""
+                document.getElementById("novoClienteWhatsapp").value = ""
+                document.getElementById("novoClienteEndereco").value = ""
+                document.getElementById("novoClienteNumero").value = ""
+            }
+            return
+        }
+
+        clientes.forEach(cliente => {
+            const li = document.createElement("li")
+            li.style.padding = "8px"
+            li.style.borderBottom = "1px solid #eee"
+            li.style.cursor = "pointer"
+            li.innerText = `${cliente.nome} - ${cliente.telefone || "sem telefone"}`
+            li.onclick = () => selecionarCliente(cliente)
+            lista.appendChild(li)
+        })
+    })
+    .catch(() => {
+        const li = document.createElement("li")
+        li.style.padding = "8px"
+        li.style.color = "#c0392b"
+        li.innerText = "Falha ao buscar clientes."
+        lista.appendChild(li)
+    })
+}
+
+function cadastrarClienteRapido(){
+    const nome = document.getElementById("novoClienteNome").value.trim()
+    const cpf = document.getElementById("novoClienteCpf").value.trim()
+    const telefone = document.getElementById("novoClienteTelefone").value.trim()
+    const whatsapp = document.getElementById("novoClienteWhatsapp").value.trim()
+    const endereco = document.getElementById("novoClienteEndereco").value.trim()
+    const numero = document.getElementById("novoClienteNumero").value.trim()
+
+    if(nome.length < 3){
+        alert("Informe um nome com pelo menos 3 caracteres")
+        return
+    }
+
+    const cpfDigitos = cpf.replace(/\D/g, "")
+    if(cpfDigitos.length < 11){
+        alert("Informe um CPF valido")
+        return
+    }
+
+    if(!endereco){
+        alert("Informe o endereco")
+        return
+    }
+
+    if(!numero){
+        alert("Informe o numero")
+        return
+    }
+
+    fetch("/cadastrar_cliente_rapido", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+            nome: nome,
+            cpf: cpf,
+            telefone: telefone,
+            whatsapp: whatsapp,
+            endereco: endereco,
+            numero: numero
+        })
+    })
+    .then(async res => {
+        const data = await res.json()
+        if(!res.ok){
+            throw new Error(data.erro || "Falha ao cadastrar cliente")
+        }
+        return data
+    })
+    .then(cliente => {
+        selecionarCliente(cliente)
+        document.getElementById("cadastroClienteRapidoBox").style.display = "none"
+    })
+    .catch(err => {
+        alert(err.message || "Falha ao cadastrar cliente")
+    })
+}
+
+function cancelarCadastroClienteRapido(){
+    document.getElementById("cadastroClienteRapidoBox").style.display = "none"
+}
+
+document.getElementById("tecnicoSelecionado").addEventListener("change", carregarAgendaTecnico)
+document.getElementById("dataAgendamento").addEventListener("change", carregarAgendaTecnico)
+document.getElementById("buscaClienteAgendamento").addEventListener("input", buscarClientesInteligente)
+document.getElementById("btnSalvarClienteRapido").addEventListener("click", cadastrarClienteRapido)
+document.getElementById("btnCancelarClienteRapido").addEventListener("click", cancelarCadastroClienteRapido)
+atualizarResumoFinalizacao()
 
 </script>
 

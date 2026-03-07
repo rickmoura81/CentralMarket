@@ -25,6 +25,15 @@ button {
 .editar { background:#2980b9; }
 .excluir { background:#c0392b; }
 .voltar { background:#7f8c8d; }
+.acoes {
+    display:flex;
+    align-items:center;
+    gap:10px;
+}
+.acoes form {
+    display:inline;
+    margin:0;
+}
 </style>
 </head>
 <body>
@@ -62,18 +71,20 @@ button {
 
 <br>
 
-<a href="/editar_cliente/{{ cliente.id }}">
-    <button class="editar">Editar</button>
-</a>
+<div class="acoes">
+    <a href="/editar_cliente/{{ cliente.id }}">
+        <button type="button" class="editar">Editar</button>
+    </a>
 
-<a href="/excluir_cliente/{{ cliente.id }}"
-   onclick="return confirm('Excluir cliente?')">
-    <button class="excluir">Excluir</button>
-</a>
+    <form method="POST" action="/excluir_cliente/{{ cliente.id }}"
+          onsubmit="return confirm('Excluir cliente?')">
+        <button type="submit" class="excluir">Excluir</button>
+    </form>
 
-<a href="/clientes">
-    <button class="voltar">Voltar</button>
-</a>
+    <a href="/clientes">
+        <button type="button" class="voltar">Voltar</button>
+    </a>
+</div>
 
 </div>
 

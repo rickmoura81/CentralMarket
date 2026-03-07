@@ -141,6 +141,10 @@ button{
 
 <span class="status-andamento">Em Atendimento</span>
 
+{% elif os.status == "Aguardando Conferencia" %}
+
+<span class="status-agendado">Aguardando Conferência</span>
+
 {% else %}
 
 <span class="status-finalizado">Finalizado</span>
