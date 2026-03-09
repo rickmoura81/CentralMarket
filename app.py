@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, jsonify, session, url_for, send_from_directory
 from banco import criar_tabelas, conectar
-from datetime import datetime
+from datetime import datetime, timedelta
 import sqlite3
 import os
 import uuid
@@ -31,6 +31,13 @@ GERENTE_ENDPOINTS = {
     "excluir_fornecedor",
     "produtos",
     "editar",
+    "financeiro",
+    "excluir_lancamento_financeiro",
+    "criar_conta_financeira",
+    "baixar_conta_financeira",
+    "estornar_conta_financeira",
+    "excluir_conta_financeira",
+    "salvar_meta_financeira",
 }
 
 PROPRIETARIO_ENDPOINTS = {
@@ -58,6 +65,26 @@ def get_db():
     conn = sqlite3.connect("database.db", timeout=10)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def parse_float_br(valor_raw, default=0.0):
+    s = str(valor_raw or "").strip()
+    if not s:
+        return float(default)
+
+    s = s.replace("R$", "").replace(" ", "")
+    if "," in s and "." in s:
+        if s.rfind(",") > s.rfind("."):
+            s = s.replace(".", "").replace(",", ".")
+        else:
+            s = s.replace(",", "")
+    else:
+        s = s.replace(",", ".")
+
+    try:
+        return float(s)
+    except (TypeError, ValueError):
+        return float(default)
 
 
 def ensure_movimentos_cancelamento_columns():
@@ -198,6 +225,78 @@ def ensure_loja_config_table():
             "Obrigado pela preferencia!"
         ))
 
+    conn.commit()
+    conn.close()
+
+
+def ensure_financeiro_table():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS financeiro_lancamentos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo TEXT NOT NULL,
+            categoria TEXT,
+            descricao TEXT,
+            valor REAL NOT NULL,
+            data_lancamento TEXT NOT NULL,
+            caixa_id INTEGER,
+            funcionario_id INTEGER,
+            origem TEXT DEFAULT 'MANUAL',
+            criado_em TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+
+def ensure_contas_financeiras_table():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS contas_financeiras (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo TEXT NOT NULL,
+            categoria TEXT,
+            descricao TEXT,
+            valor REAL NOT NULL,
+            data_emissao TEXT NOT NULL,
+            data_vencimento TEXT NOT NULL,
+            status TEXT DEFAULT 'PENDENTE',
+            data_pagamento TEXT,
+            forma_pagamento TEXT,
+            observacao TEXT,
+            funcionario_id INTEGER,
+            criado_em TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    cursor.execute("PRAGMA table_info(contas_financeiras)")
+    cols = {c["name"] for c in cursor.fetchall()}
+    if "forma_pagamento" not in cols:
+        cursor.execute("ALTER TABLE contas_financeiras ADD COLUMN forma_pagamento TEXT")
+    if "observacao" not in cols:
+        cursor.execute("ALTER TABLE contas_financeiras ADD COLUMN observacao TEXT")
+    if "funcionario_id" not in cols:
+        cursor.execute("ALTER TABLE contas_financeiras ADD COLUMN funcionario_id INTEGER")
+
+    conn.commit()
+    conn.close()
+
+
+def ensure_financeiro_metas_table():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS financeiro_metas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ano_mes TEXT NOT NULL UNIQUE,
+            meta_receita REAL DEFAULT 0,
+            meta_resultado REAL DEFAULT 0,
+            atualizado_em TEXT DEFAULT CURRENT_TIMESTAMP,
+            funcionario_id INTEGER
+        )
+    """)
     conn.commit()
     conn.close()
 
@@ -635,6 +734,73 @@ def api_tecnico_atualizar_status(os_id):
     conn.close()
 
     return jsonify({"ok": True, "status_salvo": status_salvar})
+
+
+@app.route("/api/tecnico/ordem/<int:os_id>/reagendar", methods=["POST"])
+def api_tecnico_reagendar_ordem(os_id):
+    ensure_ordem_servico_mobile_columns()
+    tecnico_id = session.get("user_id")
+    if not tecnico_id:
+        return jsonify({"ok": False, "erro": "Sessao expirada."}), 401
+
+    dados = request.get_json(silent=True) or {}
+    data_agendamento = (dados.get("data_agendamento") or "").strip()
+    hora = (dados.get("hora") or "").strip()
+    motivo = (dados.get("motivo") or "").strip()
+
+    if len(motivo) < 3:
+        return jsonify({"ok": False, "erro": "Informe o motivo do reagendamento."}), 400
+
+    try:
+        datetime.strptime(data_agendamento, "%Y-%m-%d")
+    except ValueError:
+        return jsonify({"ok": False, "erro": "Data de reagendamento invalida."}), 400
+
+    if hora:
+        try:
+            datetime.strptime(hora, "%H:%M")
+        except ValueError:
+            return jsonify({"ok": False, "erro": "Hora invalida. Use HH:MM."}), 400
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, status, observacao
+        FROM ordem_servico
+        WHERE id=? AND tecnico_id=?
+        LIMIT 1
+    """, (os_id, tecnico_id))
+    ordem = cursor.fetchone()
+    if not ordem:
+        conn.close()
+        return jsonify({"ok": False, "erro": "Ordem nao encontrada para este tecnico."}), 404
+
+    if ordem["status"] in ("Finalizado", "Aguardando Conferencia"):
+        conn.close()
+        return jsonify({"ok": False, "erro": "Nao e possivel reagendar uma OS finalizada/conferida."}), 400
+
+    hora_salvar = hora or (datetime.now().strftime("%H:%M"))
+    historico_obs = (ordem["observacao"] or "").strip()
+    linha = f"[{datetime.now().strftime('%d/%m/%Y %H:%M')}] Reagendada por falta de peca para {data_agendamento} {hora_salvar}. Motivo: {motivo}"
+    observacao_nova = f"{historico_obs}\n{linha}".strip() if historico_obs else linha
+
+    cursor.execute("""
+        UPDATE ordem_servico
+        SET data_agendamento=?,
+            hora=?,
+            status='Agendado',
+            observacao=?
+        WHERE id=?
+    """, (data_agendamento, hora_salvar, observacao_nova, os_id))
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        "ok": True,
+        "status_salvo": "Agendado",
+        "data_agendamento": data_agendamento,
+        "hora": hora_salvar
+    })
 
 
 @app.route("/api/tecnico/ordem/<int:os_id>/evidencias", methods=["POST"])
@@ -1992,6 +2158,547 @@ def painel_caixa():
         valor_inicial=valor_inicial,
         data_abertura=data_abertura
     )
+
+
+@app.route("/financeiro", methods=["GET", "POST"])
+def financeiro():
+    ensure_financeiro_table()
+    ensure_contas_financeiras_table()
+    ensure_financeiro_metas_table()
+    ensure_movimentos_desconto_columns()
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    if request.method == "POST":
+        tipo = (request.form.get("tipo") or "").strip().upper()
+        categoria = (request.form.get("categoria") or "").strip()
+        descricao = (request.form.get("descricao") or "").strip()
+        data_lancamento = (request.form.get("data_lancamento") or "").strip()
+
+        valor = parse_float_br(request.form.get("valor"), 0)
+
+        if tipo not in ("ENTRADA", "DESPESA"):
+            conn.close()
+            return "Tipo invalido.", 400
+        if valor <= 0:
+            conn.close()
+            return "Valor deve ser maior que zero.", 400
+
+        try:
+            datetime.strptime(data_lancamento, "%Y-%m-%d")
+        except ValueError:
+            conn.close()
+            return "Data invalida.", 400
+
+        cursor.execute("SELECT id FROM caixas WHERE status='ABERTO' LIMIT 1")
+        caixa = cursor.fetchone()
+        caixa_id = caixa["id"] if caixa else None
+
+        cursor.execute("""
+            INSERT INTO financeiro_lancamentos
+            (tipo, categoria, descricao, valor, data_lancamento, caixa_id, funcionario_id, origem)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'MANUAL')
+        """, (
+            tipo,
+            categoria,
+            descricao,
+            valor,
+            data_lancamento,
+            caixa_id,
+            session.get("user_id"),
+        ))
+        conn.commit()
+        conn.close()
+        return redirect("/financeiro")
+
+    hoje = datetime.now().date()
+    inicio_padrao = hoje.replace(day=1).strftime("%Y-%m-%d")
+    fim_padrao = hoje.strftime("%Y-%m-%d")
+
+    data_inicio = (request.args.get("inicio") or inicio_padrao).strip()
+    data_fim = (request.args.get("fim") or fim_padrao).strip()
+
+    try:
+        dt_inicio = datetime.strptime(data_inicio, "%Y-%m-%d").date()
+        dt_fim = datetime.strptime(data_fim, "%Y-%m-%d").date()
+    except ValueError:
+        dt_inicio = hoje.replace(day=1)
+        dt_fim = hoje
+        data_inicio = dt_inicio.strftime("%Y-%m-%d")
+        data_fim = dt_fim.strftime("%Y-%m-%d")
+
+    if dt_inicio > dt_fim:
+        dt_inicio, dt_fim = dt_fim, dt_inicio
+        data_inicio = dt_inicio.strftime("%Y-%m-%d")
+        data_fim = dt_fim.strftime("%Y-%m-%d")
+
+    def _fim_mes(dt):
+        return (dt.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+
+    def _dre_periodo(inicio_dt, fim_dt):
+        periodo = (inicio_dt.strftime("%Y-%m-%d"), fim_dt.strftime("%Y-%m-%d"))
+
+        cursor.execute("""
+            SELECT
+                COUNT(*) AS qtd_vendas,
+                COALESCE(SUM(total), 0) AS receita_liquida,
+                COALESCE(SUM(COALESCE(desconto_valor, 0)), 0) AS descontos
+            FROM movimentos
+            WHERE status='PAGO'
+              AND substr(data_abertura, 1, 10) BETWEEN ? AND ?
+        """, periodo)
+        vendas = cursor.fetchone()
+        qtd_vendas = int(vendas["qtd_vendas"] or 0)
+        receita_liquida = float(vendas["receita_liquida"] or 0)
+        descontos = float(vendas["descontos"] or 0)
+        receita_bruta = receita_liquida + descontos
+
+        cursor.execute("""
+            SELECT
+                COALESCE(SUM(im.quantidade * COALESCE(p.preco_custo, 0)), 0) AS cmv
+            FROM itens_movimento im
+            JOIN movimentos m ON m.id = im.movimento_id
+            LEFT JOIN produtos p ON p.id = im.produto_id
+            WHERE m.status='PAGO'
+              AND substr(m.data_abertura, 1, 10) BETWEEN ? AND ?
+        """, periodo)
+        cmv = float(cursor.fetchone()["cmv"] or 0)
+
+        cursor.execute("""
+            SELECT COALESCE(SUM(valor), 0) AS total
+            FROM financeiro_lancamentos
+            WHERE tipo='ENTRADA' AND data_lancamento BETWEEN ? AND ?
+        """, periodo)
+        entradas_manuais = float(cursor.fetchone()["total"] or 0)
+
+        cursor.execute("""
+            SELECT COALESCE(SUM(valor), 0) AS total
+            FROM financeiro_lancamentos
+            WHERE tipo='DESPESA' AND data_lancamento BETWEEN ? AND ?
+        """, periodo)
+        despesas_manuais = float(cursor.fetchone()["total"] or 0)
+
+        cursor.execute("""
+            SELECT COALESCE(SUM(valor), 0) AS total
+            FROM contas_financeiras
+            WHERE tipo='RECEBER'
+              AND status='PAGO'
+              AND data_pagamento BETWEEN ? AND ?
+        """, periodo)
+        contas_recebidas = float(cursor.fetchone()["total"] or 0)
+
+        cursor.execute("""
+            SELECT COALESCE(SUM(valor), 0) AS total
+            FROM contas_financeiras
+            WHERE tipo='PAGAR'
+              AND status='PAGO'
+              AND data_pagamento BETWEEN ? AND ?
+        """, periodo)
+        contas_pagas = float(cursor.fetchone()["total"] or 0)
+
+        outras_receitas = entradas_manuais + contas_recebidas
+        despesas_operacionais = despesas_manuais + contas_pagas
+        lucro_bruto = receita_liquida - cmv
+        resultado = lucro_bruto + outras_receitas - despesas_operacionais
+        margem = (resultado / receita_liquida * 100.0) if receita_liquida > 0 else 0.0
+        ticket_medio = (receita_liquida / qtd_vendas) if qtd_vendas else 0.0
+
+        return {
+            "receita_bruta": receita_bruta,
+            "descontos": descontos,
+            "receita_liquida": receita_liquida,
+            "cmv": cmv,
+            "lucro_bruto": lucro_bruto,
+            "outras_receitas": outras_receitas,
+            "despesas_operacionais": despesas_operacionais,
+            "resultado": resultado,
+            "margem": margem,
+            "qtd_vendas": qtd_vendas,
+            "ticket_medio": ticket_medio,
+            "entradas": entradas_manuais,
+            "despesas": despesas_manuais,
+            "contas_recebidas": contas_recebidas,
+            "contas_pagas": contas_pagas,
+        }
+
+    periodo = (data_inicio, data_fim)
+    dre_periodo = _dre_periodo(dt_inicio, dt_fim)
+    receita_bruta = dre_periodo["receita_bruta"]
+    descontos = dre_periodo["descontos"]
+    receita_liquida = dre_periodo["receita_liquida"]
+    ticket_medio = dre_periodo["ticket_medio"]
+    qtd_vendas = dre_periodo["qtd_vendas"]
+    entradas = dre_periodo["entradas"]
+    despesas = dre_periodo["despesas"]
+    saldo_periodo = receita_liquida + entradas - despesas
+
+    cursor.execute("""
+        SELECT
+            COUNT(*) AS qtd_cancelamentos,
+            COALESCE(SUM(total), 0) AS total_cancelado
+        FROM movimentos
+        WHERE status='CANCELADO'
+          AND substr(COALESCE(data_cancelamento, data_abertura), 1, 10) BETWEEN ? AND ?
+    """, periodo)
+    cancel = cursor.fetchone()
+    qtd_cancelamentos = int(cancel["qtd_cancelamentos"] or 0)
+    total_cancelado = float(cancel["total_cancelado"] or 0)
+
+    cursor.execute("""
+        SELECT COALESCE(forma_pagamento, 'NAO INFORMADO') AS forma,
+               COALESCE(SUM(total), 0) AS total
+        FROM movimentos
+        WHERE status='PAGO'
+          AND substr(data_abertura, 1, 10) BETWEEN ? AND ?
+        GROUP BY forma_pagamento
+        ORDER BY total DESC
+    """, periodo)
+    formas_rows = cursor.fetchall()
+    formas_pagamento = [
+        {"forma": f["forma"], "total": float(f["total"] or 0)}
+        for f in formas_rows
+    ]
+
+    cursor.execute("""
+        SELECT
+            fl.id,
+            fl.tipo,
+            fl.categoria,
+            fl.descricao,
+            fl.valor,
+            fl.data_lancamento,
+            fl.caixa_id,
+            COALESCE(f.nome, '') AS funcionario_nome
+        FROM financeiro_lancamentos fl
+        LEFT JOIN funcionarios f ON f.id = fl.funcionario_id
+        WHERE fl.data_lancamento BETWEEN ? AND ?
+        ORDER BY fl.data_lancamento DESC, fl.id DESC
+        LIMIT 80
+    """, periodo)
+    lancamentos = cursor.fetchall()
+
+    cursor.execute("""
+        SELECT
+            substr(data_abertura, 1, 10) AS dia,
+            COALESCE(SUM(total), 0) AS total
+        FROM movimentos
+        WHERE status='PAGO'
+          AND substr(data_abertura, 1, 10) BETWEEN ? AND ?
+        GROUP BY substr(data_abertura, 1, 10)
+        ORDER BY dia
+    """, periodo)
+    receita_dia_map = {r["dia"]: float(r["total"] or 0) for r in cursor.fetchall()}
+
+    cursor.execute("""
+        SELECT
+            data_lancamento AS dia,
+            COALESCE(SUM(CASE WHEN tipo='ENTRADA' THEN valor ELSE 0 END), 0) AS entradas,
+            COALESCE(SUM(CASE WHEN tipo='DESPESA' THEN valor ELSE 0 END), 0) AS despesas
+        FROM financeiro_lancamentos
+        WHERE data_lancamento BETWEEN ? AND ?
+        GROUP BY data_lancamento
+        ORDER BY data_lancamento
+    """, periodo)
+    lanc_dia_rows = cursor.fetchall()
+    lanc_dia_map = {
+        r["dia"]: {
+            "entradas": float(r["entradas"] or 0),
+            "despesas": float(r["despesas"] or 0),
+        }
+        for r in lanc_dia_rows
+    }
+
+    fluxo_diario = []
+    dias = sorted(set(list(receita_dia_map.keys()) + list(lanc_dia_map.keys())))
+    saldo_acumulado = 0.0
+    for dia in dias:
+        receita_dia = float(receita_dia_map.get(dia, 0))
+        entradas_dia = float(lanc_dia_map.get(dia, {}).get("entradas", 0))
+        despesas_dia = float(lanc_dia_map.get(dia, {}).get("despesas", 0))
+        saldo_dia = receita_dia + entradas_dia - despesas_dia
+        saldo_acumulado += saldo_dia
+        fluxo_diario.append({
+            "dia": dia,
+            "receita": receita_dia,
+            "entradas": entradas_dia,
+            "despesas": despesas_dia,
+            "saldo_dia": saldo_dia,
+            "saldo_acumulado": saldo_acumulado,
+        })
+
+    mes_atual_ini = hoje.replace(day=1)
+    mes_atual_fim = _fim_mes(mes_atual_ini)
+    mes_anterior_ref = mes_atual_ini - timedelta(days=1)
+    mes_anterior_ini = mes_anterior_ref.replace(day=1)
+    mes_anterior_fim = _fim_mes(mes_anterior_ini)
+    dre_mes_atual = _dre_periodo(mes_atual_ini, mes_atual_fim)
+    dre_mes_anterior = _dre_periodo(mes_anterior_ini, mes_anterior_fim)
+
+    conta_status = (request.args.get("conta_status") or "TODOS").strip().upper()
+    conta_tipo = (request.args.get("conta_tipo") or "TODOS").strip().upper()
+    filtros = ["1=1"]
+    params = []
+    if conta_status in ("PENDENTE", "PAGO"):
+        filtros.append("cf.status=?")
+        params.append(conta_status)
+    if conta_tipo in ("PAGAR", "RECEBER"):
+        filtros.append("cf.tipo=?")
+        params.append(conta_tipo)
+
+    cursor.execute(f"""
+        SELECT
+            cf.id, cf.tipo, cf.categoria, cf.descricao, cf.valor,
+            cf.data_emissao, cf.data_vencimento, cf.status, cf.data_pagamento,
+            cf.forma_pagamento, cf.observacao,
+            COALESCE(f.nome, '') AS funcionario_nome
+        FROM contas_financeiras cf
+        LEFT JOIN funcionarios f ON f.id = cf.funcionario_id
+        WHERE {' AND '.join(filtros)}
+        ORDER BY cf.data_vencimento ASC, cf.id DESC
+        LIMIT 120
+    """, params)
+    contas = cursor.fetchall()
+
+    hoje_str = hoje.strftime("%Y-%m-%d")
+    cursor.execute("""
+        SELECT
+            COALESCE(SUM(CASE WHEN tipo='PAGAR' AND status='PENDENTE' THEN valor ELSE 0 END), 0) AS pagar_pendente,
+            COALESCE(SUM(CASE WHEN tipo='RECEBER' AND status='PENDENTE' THEN valor ELSE 0 END), 0) AS receber_pendente,
+            COALESCE(SUM(CASE WHEN tipo='PAGAR' AND status='PENDENTE' AND data_vencimento < ? THEN valor ELSE 0 END), 0) AS pagar_atrasado,
+            COALESCE(SUM(CASE WHEN tipo='RECEBER' AND status='PENDENTE' AND data_vencimento < ? THEN valor ELSE 0 END), 0) AS receber_atrasado
+        FROM contas_financeiras
+    """, (hoje_str, hoje_str))
+    resumo_contas = cursor.fetchone()
+
+    meses = []
+    ref = mes_atual_ini
+    for _ in range(6):
+        ini = ref.replace(day=1)
+        fim = _fim_mes(ini)
+        dre_m = _dre_periodo(ini, fim)
+        meses.append({
+            "mes": ini.strftime("%Y-%m"),
+            "receita": dre_m["receita_liquida"],
+            "despesas": dre_m["despesas_operacionais"] + dre_m["cmv"],
+            "resultado": dre_m["resultado"],
+        })
+        ref = ini - timedelta(days=1)
+    meses.reverse()
+
+    mes_meta = mes_atual_ini.strftime("%Y-%m")
+    cursor.execute("""
+        SELECT ano_mes, COALESCE(meta_receita, 0) AS meta_receita, COALESCE(meta_resultado, 0) AS meta_resultado
+        FROM financeiro_metas
+        WHERE ano_mes=?
+        LIMIT 1
+    """, (mes_meta,))
+    meta_atual = cursor.fetchone()
+    if not meta_atual:
+        meta_atual = {
+            "ano_mes": mes_meta,
+            "meta_receita": 0.0,
+            "meta_resultado": 0.0,
+        }
+
+    receita_atual = float(dre_mes_atual["receita_liquida"] or 0)
+    resultado_atual = float(dre_mes_atual["resultado"] or 0)
+    meta_receita_val = float(meta_atual["meta_receita"] or 0)
+    meta_resultado_val = float(meta_atual["meta_resultado"] or 0)
+
+    perc_receita = (receita_atual / meta_receita_val * 100.0) if meta_receita_val > 0 else 0.0
+    perc_resultado = (resultado_atual / meta_resultado_val * 100.0) if meta_resultado_val > 0 else 0.0
+
+    def _semaforo(perc):
+        if perc >= 100:
+            return "verde"
+        if perc >= 80:
+            return "amarelo"
+        return "vermelho"
+
+    meta_status = {
+        "receita": _semaforo(perc_receita) if meta_receita_val > 0 else "sem_meta",
+        "resultado": _semaforo(perc_resultado) if meta_resultado_val > 0 else "sem_meta",
+    }
+
+    conn.close()
+
+    return render_template(
+        "financeiro.html",
+        data_inicio=data_inicio,
+        data_fim=data_fim,
+        receita_bruta=receita_bruta,
+        descontos=descontos,
+        receita_liquida=receita_liquida,
+        despesas=despesas,
+        entradas=entradas,
+        saldo_periodo=saldo_periodo,
+        qtd_vendas=qtd_vendas,
+        ticket_medio=ticket_medio,
+        qtd_cancelamentos=qtd_cancelamentos,
+        total_cancelado=total_cancelado,
+        formas_pagamento=formas_pagamento,
+        lancamentos=lancamentos,
+        fluxo_diario=fluxo_diario,
+        hoje=fim_padrao,
+        dre_periodo=dre_periodo,
+        dre_mes_atual=dre_mes_atual,
+        dre_mes_anterior=dre_mes_anterior,
+        contas=contas,
+        conta_status=conta_status,
+        conta_tipo=conta_tipo,
+        resumo_contas=resumo_contas,
+        historico_mensal=meses,
+        meta_atual=meta_atual,
+        meta_status=meta_status,
+        perc_meta_receita=perc_receita,
+        perc_meta_resultado=perc_resultado,
+    )
+
+
+@app.route("/financeiro/excluir/<int:lancamento_id>", methods=["POST"])
+def excluir_lancamento_financeiro(lancamento_id):
+    ensure_financeiro_table()
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM financeiro_lancamentos WHERE id=?", (lancamento_id,))
+    conn.commit()
+    conn.close()
+    return redirect("/financeiro")
+
+
+@app.route("/financeiro/meta", methods=["POST"])
+def salvar_meta_financeira():
+    ensure_financeiro_metas_table()
+    conn = get_db()
+    cursor = conn.cursor()
+
+    ano_mes = (request.form.get("ano_mes") or "").strip()
+    try:
+        datetime.strptime(f"{ano_mes}-01", "%Y-%m-%d")
+    except ValueError:
+        conn.close()
+        return "Mes de referencia invalido.", 400
+
+    meta_receita = parse_float_br(request.form.get("meta_receita"), 0)
+    meta_resultado = parse_float_br(request.form.get("meta_resultado"), 0)
+
+    meta_receita = max(0.0, meta_receita)
+    meta_resultado = max(0.0, meta_resultado)
+
+    cursor.execute("""
+        INSERT INTO financeiro_metas (ano_mes, meta_receita, meta_resultado, funcionario_id)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(ano_mes) DO UPDATE SET
+            meta_receita=excluded.meta_receita,
+            meta_resultado=excluded.meta_resultado,
+            atualizado_em=CURRENT_TIMESTAMP,
+            funcionario_id=excluded.funcionario_id
+    """, (ano_mes, meta_receita, meta_resultado, session.get("user_id")))
+    conn.commit()
+    conn.close()
+    return redirect("/financeiro")
+
+
+@app.route("/financeiro/contas", methods=["POST"])
+def criar_conta_financeira():
+    ensure_contas_financeiras_table()
+    conn = get_db()
+    cursor = conn.cursor()
+
+    tipo = (request.form.get("tipo") or "").strip().upper()
+    categoria = (request.form.get("categoria") or "").strip()
+    descricao = (request.form.get("descricao") or "").strip()
+    data_emissao = (request.form.get("data_emissao") or "").strip()
+    data_vencimento = (request.form.get("data_vencimento") or "").strip()
+    observacao = (request.form.get("observacao") or "").strip()
+    valor = parse_float_br(request.form.get("valor"), 0)
+
+    if tipo not in ("PAGAR", "RECEBER"):
+        conn.close()
+        return "Tipo de conta invalido.", 400
+    if valor <= 0:
+        conn.close()
+        return "Valor da conta deve ser maior que zero.", 400
+    try:
+        datetime.strptime(data_emissao, "%Y-%m-%d")
+        datetime.strptime(data_vencimento, "%Y-%m-%d")
+    except ValueError:
+        conn.close()
+        return "Datas invalidas.", 400
+
+    cursor.execute("""
+        INSERT INTO contas_financeiras
+        (tipo, categoria, descricao, valor, data_emissao, data_vencimento, status, observacao, funcionario_id)
+        VALUES (?, ?, ?, ?, ?, ?, 'PENDENTE', ?, ?)
+    """, (
+        tipo, categoria, descricao, valor, data_emissao, data_vencimento, observacao, session.get("user_id")
+    ))
+    conn.commit()
+    conn.close()
+    return redirect("/financeiro")
+
+
+@app.route("/financeiro/contas/<int:conta_id>/baixar", methods=["POST"])
+def baixar_conta_financeira(conta_id):
+    ensure_contas_financeiras_table()
+    conn = get_db()
+    cursor = conn.cursor()
+    data_pagamento = (request.form.get("data_pagamento") or datetime.now().strftime("%Y-%m-%d")).strip()
+    forma_pagamento = (request.form.get("forma_pagamento") or "").strip().upper()
+    if forma_pagamento and forma_pagamento not in ("DINHEIRO", "PIX", "CARTAO", "TRANSFERENCIA", "BOLETO", "DEBITO"):
+        forma_pagamento = "OUTROS"
+
+    try:
+        datetime.strptime(data_pagamento, "%Y-%m-%d")
+    except ValueError:
+        conn.close()
+        return "Data de pagamento invalida.", 400
+
+    cursor.execute("SELECT id FROM contas_financeiras WHERE id=?", (conta_id,))
+    if not cursor.fetchone():
+        conn.close()
+        return "Conta nao encontrada.", 404
+
+    cursor.execute("""
+        UPDATE contas_financeiras
+        SET status='PAGO',
+            data_pagamento=?,
+            forma_pagamento=?,
+            funcionario_id=?
+        WHERE id=?
+    """, (data_pagamento, forma_pagamento, session.get("user_id"), conta_id))
+    conn.commit()
+    conn.close()
+    return redirect("/financeiro")
+
+
+@app.route("/financeiro/contas/<int:conta_id>/estornar", methods=["POST"])
+def estornar_conta_financeira(conta_id):
+    ensure_contas_financeiras_table()
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE contas_financeiras
+        SET status='PENDENTE',
+            data_pagamento=NULL,
+            forma_pagamento=NULL
+        WHERE id=?
+    """, (conta_id,))
+    conn.commit()
+    conn.close()
+    return redirect("/financeiro")
+
+
+@app.route("/financeiro/contas/<int:conta_id>/excluir", methods=["POST"])
+def excluir_conta_financeira(conta_id):
+    ensure_contas_financeiras_table()
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM contas_financeiras WHERE id=?", (conta_id,))
+    conn.commit()
+    conn.close()
+    return redirect("/financeiro")
 #=================================================
 #rota para listar pedidos
 #=================================================
@@ -3305,22 +4012,37 @@ def agenda_semana():
 
     conn = get_db()
     cursor = conn.cursor()
+    tecnico = (request.args.get("tecnico") or "").strip()
+
+    query = """
+        SELECT
+            os.id,
+            os.servico_nome,
+            os.data_agendamento,
+            os.hora,
+            os.status,
+            c.nome AS cliente,
+            f.nome AS tecnico
+        FROM ordem_servico os
+        LEFT JOIN clientes c ON os.cliente_id = c.id
+        LEFT JOIN funcionarios f ON os.tecnico_id = f.id
+    """
+    params = []
+    if tecnico:
+        query += " WHERE COALESCE(f.nome, '') = ?"
+        params.append(tecnico)
+    query += " ORDER BY os.data_agendamento, os.hora"
+
+    cursor.execute(query, params)
+    agenda = cursor.fetchall()
 
     cursor.execute("""
-    SELECT
-        os.id,
-        os.servico_nome,
-        os.data_agendamento,
-        os.hora,
-        c.nome AS cliente,
-        f.nome AS tecnico
-    FROM ordem_servico os
-    LEFT JOIN clientes c ON os.cliente_id = c.id
-    LEFT JOIN funcionarios f ON os.tecnico_id = f.id
-    ORDER BY os.data_agendamento, os.hora
+        SELECT nome
+        FROM funcionarios
+        WHERE status='Ativo'
+        ORDER BY nome
     """)
-
-    agenda = cursor.fetchall()
+    tecnicos = cursor.fetchall()
 
     conn.close()
 
@@ -3334,7 +4056,12 @@ def agenda_semana():
 
         dias[data].append(os)
 
-    return render_template("agenda_semana.html", dias=dias)
+    return render_template(
+        "agenda_semana.html",
+        dias=dias,
+        tecnicos=tecnicos,
+        tecnico_atual=tecnico
+    )
 # ================================================
 #rota agenda_dia
 #=================================================

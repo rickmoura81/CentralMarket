@@ -1,0 +1,521 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+.fin-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 12px;
+}
+
+.fin-card {
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+    padding: 14px;
+}
+
+.fin-title {
+    margin: 0 0 10px;
+    font-size: 18px;
+}
+
+.fin-kpi small {
+    display: block;
+    color: #64748b;
+    text-transform: uppercase;
+    font-size: 11px;
+    margin-bottom: 6px;
+}
+
+.fin-kpi strong {
+    font-size: 22px;
+}
+
+.pos { color: #15803d; }
+.neg { color: #b91c1c; }
+
+.fin-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.fin-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.fin-table th, .fin-table td {
+    border-bottom: 1px solid #e2e8f0;
+    padding: 8px;
+    text-align: left;
+}
+
+.fin-table th {
+    background: #f8fafc;
+}
+
+.fin-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.fin-filter {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 10px;
+    align-items: end;
+    max-width: 720px;
+}
+
+.badge {
+    display: inline-block;
+    border-radius: 999px;
+    padding: 3px 8px;
+    color: #fff;
+    font-size: 11px;
+}
+
+.b-pagar { background: #b91c1c; }
+.b-receber { background: #0369a1; }
+.b-pago { background: #15803d; }
+.b-pendente { background: #6b7280; }
+
+.hist-bars {
+    display: grid;
+    gap: 7px;
+    margin-top: 8px;
+}
+
+.hist-row {
+    display: grid;
+    grid-template-columns: 80px 1fr 90px;
+    gap: 8px;
+    align-items: center;
+    font-size: 12px;
+}
+
+.hist-track {
+    background: #e2e8f0;
+    height: 10px;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.hist-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #0891b2, #2563eb);
+}
+
+.btn-mini {
+    border: 0;
+    border-radius: 6px;
+    padding: 6px 8px;
+    color: #fff;
+    cursor: pointer;
+}
+
+.btn-ok { background: #15803d; }
+.btn-warn { background: #475569; }
+.btn-del { background: #b91c1c; }
+
+.semaforo {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    margin-right: 6px;
+}
+.s-verde { background: #16a34a; }
+.s-amarelo { background: #f59e0b; }
+.s-vermelho { background: #dc2626; }
+.s-sem_meta { background: #94a3b8; }
+
+@media (max-width: 980px) {
+    .fin-row {
+        grid-template-columns: 1fr;
+    }
+    .fin-form-grid {
+        grid-template-columns: 1fr;
+    }
+    .fin-filter {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+<div class="fin-card">
+    <h2 style="margin:0 0 6px;">Gestao Financeira Profissional</h2>
+    <div style="color:#475569;">DRE, contas a pagar/receber e dashboard executivo.</div>
+</div>
+
+<div class="fin-card">
+    <form method="GET" class="fin-filter">
+        <div>
+            <label>Inicio</label>
+            <input type="date" name="inicio" value="{{ data_inicio }}">
+        </div>
+        <div>
+            <label>Fim</label>
+            <input type="date" name="fim" value="{{ data_fim }}">
+        </div>
+        <button type="submit">Atualizar Dashboard</button>
+    </form>
+</div>
+
+<div class="fin-grid">
+    <div class="fin-card fin-kpi">
+        <small>Receita Liquida</small>
+        <strong class="pos">R$ {{ "%.2f"|format(receita_liquida) }}</strong>
+    </div>
+    <div class="fin-card fin-kpi">
+        <small>Resultado Operacional</small>
+        <strong class="{{ 'pos' if dre_periodo.resultado >= 0 else 'neg' }}">R$ {{ "%.2f"|format(dre_periodo.resultado) }}</strong>
+    </div>
+    <div class="fin-card fin-kpi">
+        <small>Margem Operacional</small>
+        <strong class="{{ 'pos' if dre_periodo.margem >= 0 else 'neg' }}">{{ "%.2f"|format(dre_periodo.margem) }}%</strong>
+    </div>
+    <div class="fin-card fin-kpi">
+        <small>Ticket Medio</small>
+        <strong>R$ {{ "%.2f"|format(ticket_medio) }}</strong>
+    </div>
+    <div class="fin-card fin-kpi">
+        <small>Contas a Receber (Pendente)</small>
+        <strong class="pos">R$ {{ "%.2f"|format(resumo_contas.receber_pendente) }}</strong>
+    </div>
+    <div class="fin-card fin-kpi">
+        <small>Contas a Pagar (Pendente)</small>
+        <strong class="neg">R$ {{ "%.2f"|format(resumo_contas.pagar_pendente) }}</strong>
+    </div>
+    <div class="fin-card fin-kpi">
+        <small>Receber Atrasado</small>
+        <strong class="neg">R$ {{ "%.2f"|format(resumo_contas.receber_atrasado) }}</strong>
+    </div>
+    <div class="fin-card fin-kpi">
+        <small>Pagar Atrasado</small>
+        <strong class="neg">R$ {{ "%.2f"|format(resumo_contas.pagar_atrasado) }}</strong>
+    </div>
+</div>
+
+<div class="fin-row">
+    <div class="fin-card">
+        <h3 class="fin-title">Metas do Mes ({{ meta_atual.ano_mes }})</h3>
+        <form method="POST" action="/financeiro/meta">
+            <div class="fin-form-grid">
+                <div>
+                    <label>Mes (AAAA-MM)</label>
+                    <input type="month" name="ano_mes" value="{{ meta_atual.ano_mes }}" required>
+                </div>
+                <div>
+                    <label>Meta de Receita</label>
+                    <input type="text" name="meta_receita" inputmode="decimal" placeholder="0,00" value="{{ '%.2f'|format(meta_atual.meta_receita) }}" required>
+                </div>
+                <div>
+                    <label>Meta de Resultado</label>
+                    <input type="text" name="meta_resultado" inputmode="decimal" placeholder="0,00" value="{{ '%.2f'|format(meta_atual.meta_resultado) }}" required>
+                </div>
+            </div>
+            <button type="submit">Salvar Metas</button>
+        </form>
+
+        <table class="fin-table" style="margin-top:10px;">
+            <thead>
+                <tr><th>Indicador</th><th>Realizado</th><th>Meta</th><th>Progresso</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Receita liquida</td>
+                    <td>R$ {{ "%.2f"|format(dre_mes_atual.receita_liquida) }}</td>
+                    <td>R$ {{ "%.2f"|format(meta_atual.meta_receita) }}</td>
+                    <td>{{ "%.1f"|format(perc_meta_receita) }}%</td>
+                    <td><span class="semaforo s-{{ meta_status.receita }}"></span>{{ meta_status.receita|upper }}</td>
+                </tr>
+                <tr>
+                    <td>Resultado operacional</td>
+                    <td>R$ {{ "%.2f"|format(dre_mes_atual.resultado) }}</td>
+                    <td>R$ {{ "%.2f"|format(meta_atual.meta_resultado) }}</td>
+                    <td>{{ "%.1f"|format(perc_meta_resultado) }}%</td>
+                    <td><span class="semaforo s-{{ meta_status.resultado }}"></span>{{ meta_status.resultado|upper }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="fin-card">
+        <h3 class="fin-title">DRE do Periodo</h3>
+        <table class="fin-table">
+            <tbody>
+                <tr><td>Receita bruta</td><td>R$ {{ "%.2f"|format(dre_periodo.receita_bruta) }}</td></tr>
+                <tr><td>(-) Descontos</td><td class="neg">R$ {{ "%.2f"|format(dre_periodo.descontos) }}</td></tr>
+                <tr><td><strong>Receita liquida</strong></td><td><strong class="pos">R$ {{ "%.2f"|format(dre_periodo.receita_liquida) }}</strong></td></tr>
+                <tr><td>(-) Custo mercadoria (CMV)</td><td class="neg">R$ {{ "%.2f"|format(dre_periodo.cmv) }}</td></tr>
+                <tr><td><strong>Lucro bruto</strong></td><td><strong class="{{ 'pos' if dre_periodo.lucro_bruto >= 0 else 'neg' }}">R$ {{ "%.2f"|format(dre_periodo.lucro_bruto) }}</strong></td></tr>
+                <tr><td>(+) Outras receitas</td><td class="pos">R$ {{ "%.2f"|format(dre_periodo.outras_receitas) }}</td></tr>
+                <tr><td>(-) Despesas operacionais</td><td class="neg">R$ {{ "%.2f"|format(dre_periodo.despesas_operacionais) }}</td></tr>
+                <tr><td><strong>Resultado operacional</strong></td><td><strong class="{{ 'pos' if dre_periodo.resultado >= 0 else 'neg' }}">R$ {{ "%.2f"|format(dre_periodo.resultado) }}</strong></td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="fin-card">
+        <h3 class="fin-title">Comparativo Mensal</h3>
+        <table class="fin-table">
+            <thead>
+                <tr><th>Indicador</th><th>Mes Atual</th><th>Mes Anterior</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Receita liquida</td>
+                    <td>R$ {{ "%.2f"|format(dre_mes_atual.receita_liquida) }}</td>
+                    <td>R$ {{ "%.2f"|format(dre_mes_anterior.receita_liquida) }}</td>
+                </tr>
+                <tr>
+                    <td>Resultado</td>
+                    <td class="{{ 'pos' if dre_mes_atual.resultado >= 0 else 'neg' }}">R$ {{ "%.2f"|format(dre_mes_atual.resultado) }}</td>
+                    <td class="{{ 'pos' if dre_mes_anterior.resultado >= 0 else 'neg' }}">R$ {{ "%.2f"|format(dre_mes_anterior.resultado) }}</td>
+                </tr>
+                <tr>
+                    <td>Margem</td>
+                    <td>{{ "%.2f"|format(dre_mes_atual.margem) }}%</td>
+                    <td>{{ "%.2f"|format(dre_mes_anterior.margem) }}%</td>
+                </tr>
+                <tr>
+                    <td>Ticket medio</td>
+                    <td>R$ {{ "%.2f"|format(dre_mes_atual.ticket_medio) }}</td>
+                    <td>R$ {{ "%.2f"|format(dre_mes_anterior.ticket_medio) }}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        {% set max_hist = (historico_mensal|map(attribute='receita')|list|max if historico_mensal else 1) %}
+        <h4 style="margin:12px 0 6px;">Historico de Receita (6 meses)</h4>
+        <div class="hist-bars">
+            {% for h in historico_mensal %}
+            {% set pct = ((h.receita / (max_hist if max_hist > 0 else 1)) * 100) %}
+            <div class="hist-row">
+                <div>{{ h.mes }}</div>
+                <div class="hist-track"><div class="hist-fill" style="width:{{ '%.1f'|format(pct) }}%"></div></div>
+                <div>R$ {{ "%.2f"|format(h.receita) }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<div class="fin-row">
+    <div class="fin-card">
+        <h3 class="fin-title">Novo Lancamento Manual</h3>
+        <form method="POST">
+            <div class="fin-form-grid">
+                <div>
+                    <label>Tipo</label>
+                    <select name="tipo" required>
+                        <option value="DESPESA">Despesa</option>
+                        <option value="ENTRADA">Entrada</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Data</label>
+                    <input type="date" name="data_lancamento" value="{{ hoje }}" required>
+                </div>
+                <div>
+                    <label>Categoria</label>
+                    <input type="text" name="categoria" placeholder="Ex: Marketing, Juros">
+                </div>
+                <div>
+                    <label>Valor</label>
+                    <input type="text" name="valor" inputmode="decimal" placeholder="0,00" required>
+                </div>
+            </div>
+            <label>Descricao</label>
+            <input type="text" name="descricao" placeholder="Descricao do lancamento">
+            <button type="submit">Salvar Lancamento</button>
+        </form>
+    </div>
+
+    <div class="fin-card">
+        <h3 class="fin-title">Nova Conta (Pagar/Receber)</h3>
+        <form method="POST" action="/financeiro/contas">
+            <div class="fin-form-grid">
+                <div>
+                    <label>Tipo</label>
+                    <select name="tipo" required>
+                        <option value="PAGAR">A Pagar</option>
+                        <option value="RECEBER">A Receber</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Categoria</label>
+                    <input type="text" name="categoria" placeholder="Ex: Aluguel, Cliente XPTO">
+                </div>
+                <div>
+                    <label>Emissao</label>
+                    <input type="date" name="data_emissao" value="{{ hoje }}" required>
+                </div>
+                <div>
+                    <label>Vencimento</label>
+                    <input type="date" name="data_vencimento" value="{{ hoje }}" required>
+                </div>
+                <div>
+                    <label>Valor</label>
+                    <input type="text" name="valor" inputmode="decimal" placeholder="0,00" required>
+                </div>
+                <div>
+                    <label>Descricao</label>
+                    <input type="text" name="descricao" placeholder="Descricao do titulo">
+                </div>
+            </div>
+            <label>Observacao</label>
+            <input type="text" name="observacao" placeholder="Opcional">
+            <button type="submit">Salvar Conta</button>
+        </form>
+    </div>
+</div>
+
+<div class="fin-card" style="margin-top:12px;">
+    <h3 class="fin-title">Contas a Pagar e Receber</h3>
+    <form method="GET" class="fin-filter" style="margin-bottom:10px;">
+        <div>
+            <label>Status</label>
+            <select name="conta_status">
+                <option value="TODOS" {% if conta_status == 'TODOS' %}selected{% endif %}>Todos</option>
+                <option value="PENDENTE" {% if conta_status == 'PENDENTE' %}selected{% endif %}>Pendente</option>
+                <option value="PAGO" {% if conta_status == 'PAGO' %}selected{% endif %}>Pago</option>
+            </select>
+        </div>
+        <div>
+            <label>Tipo</label>
+            <select name="conta_tipo">
+                <option value="TODOS" {% if conta_tipo == 'TODOS' %}selected{% endif %}>Todos</option>
+                <option value="PAGAR" {% if conta_tipo == 'PAGAR' %}selected{% endif %}>A Pagar</option>
+                <option value="RECEBER" {% if conta_tipo == 'RECEBER' %}selected{% endif %}>A Receber</option>
+            </select>
+        </div>
+        <button type="submit">Aplicar Filtro</button>
+    </form>
+
+    <table class="fin-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Tipo</th>
+                <th>Status</th>
+                <th>Categoria</th>
+                <th>Descricao</th>
+                <th>Vencimento</th>
+                <th>Pagamento</th>
+                <th>Valor</th>
+                <th>Acoes</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if contas %}
+                {% for c in contas %}
+                <tr>
+                    <td>#{{ c.id }}</td>
+                    <td><span class="badge {{ 'b-pagar' if c.tipo == 'PAGAR' else 'b-receber' }}">{{ c.tipo }}</span></td>
+                    <td><span class="badge {{ 'b-pago' if c.status == 'PAGO' else 'b-pendente' }}">{{ c.status }}</span></td>
+                    <td>{{ c.categoria or "-" }}</td>
+                    <td>{{ c.descricao or "-" }}</td>
+                    <td>{{ c.data_vencimento }}</td>
+                    <td>{{ c.data_pagamento or "-" }}</td>
+                    <td>R$ {{ "%.2f"|format(c.valor) }}</td>
+                    <td>
+                        {% if c.status == 'PENDENTE' %}
+                        <form method="POST" action="/financeiro/contas/{{ c.id }}/baixar" style="display:inline;">
+                            <input type="hidden" name="data_pagamento" value="{{ hoje }}">
+                            <input type="hidden" name="forma_pagamento" value="PIX">
+                            <button type="submit" class="btn-mini btn-ok">Baixar</button>
+                        </form>
+                        {% else %}
+                        <form method="POST" action="/financeiro/contas/{{ c.id }}/estornar" style="display:inline;">
+                            <button type="submit" class="btn-mini btn-warn">Estornar</button>
+                        </form>
+                        {% endif %}
+                        <form method="POST" action="/financeiro/contas/{{ c.id }}/excluir" style="display:inline;" onsubmit="return confirm('Excluir esta conta?')">
+                            <button type="submit" class="btn-mini btn-del">Excluir</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr><td colspan="9">Nenhuma conta cadastrada.</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<div class="fin-row">
+    <div class="fin-card">
+        <h3 class="fin-title">Receita por Forma</h3>
+        <table class="fin-table">
+            <thead><tr><th>Forma</th><th>Total</th></tr></thead>
+            <tbody>
+                {% if formas_pagamento %}
+                    {% for f in formas_pagamento %}
+                    <tr><td>{{ f.forma }}</td><td>R$ {{ "%.2f"|format(f.total) }}</td></tr>
+                    {% endfor %}
+                {% else %}
+                    <tr><td colspan="2">Sem dados.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="fin-card">
+        <h3 class="fin-title">Fluxo Diario</h3>
+        <table class="fin-table">
+            <thead><tr><th>Dia</th><th>Receita</th><th>Entradas</th><th>Despesas</th><th>Saldo</th></tr></thead>
+            <tbody>
+                {% if fluxo_diario %}
+                    {% for d in fluxo_diario %}
+                    <tr>
+                        <td>{{ d.dia }}</td>
+                        <td>R$ {{ "%.2f"|format(d.receita) }}</td>
+                        <td class="pos">R$ {{ "%.2f"|format(d.entradas) }}</td>
+                        <td class="neg">R$ {{ "%.2f"|format(d.despesas) }}</td>
+                        <td class="{{ 'pos' if d.saldo_dia >= 0 else 'neg' }}">R$ {{ "%.2f"|format(d.saldo_dia) }}</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr><td colspan="5">Sem dados no periodo.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="fin-card" style="margin-top:12px;">
+    <h3 class="fin-title">Lancamentos Manuais</h3>
+    <table class="fin-table">
+        <thead>
+            <tr><th>Data</th><th>Tipo</th><th>Categoria</th><th>Descricao</th><th>Valor</th><th>Acao</th></tr>
+        </thead>
+        <tbody>
+            {% if lancamentos %}
+                {% for l in lancamentos %}
+                <tr>
+                    <td>{{ l.data_lancamento }}</td>
+                    <td><span class="badge {{ 'b-receber' if l.tipo == 'ENTRADA' else 'b-pagar' }}">{{ l.tipo }}</span></td>
+                    <td>{{ l.categoria or '-' }}</td>
+                    <td>{{ l.descricao or '-' }}</td>
+                    <td>R$ {{ "%.2f"|format(l.valor) }}</td>
+                    <td>
+                        <form method="POST" action="/financeiro/excluir/{{ l.id }}" onsubmit="return confirm('Excluir este lancamento?')">
+                            <button type="submit" class="btn-mini btn-del">Excluir</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr><td colspan="6">Sem lancamentos no periodo.</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

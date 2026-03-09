@@ -14,6 +14,7 @@
     .btn-save{background:#0f766e;color:#fff}
     .btn-end{background:#16a34a;color:#fff}
     .btn-map{background:#2563eb;color:#fff}
+    .btn-reag{background:#b45309;color:#fff}
     .line{margin-top:6px;font-size:14px}
     .section{margin-top:10px;border:1px dashed #dbe5e8;border-radius:10px;padding:10px;background:#f7fbfc}
     .section h3{margin:0 0 8px;color:#0f766e;font-size:13px;text-transform:uppercase}
@@ -323,6 +324,7 @@
           <div class='line'><strong>Endereço:</strong> ${esc(endereco(ordemAtual) || "-")}</div>
           <div class='line'><strong>Defeito:</strong> ${esc(ordemAtual.defeito_reclamado || "-")}</div>
           <div class='line'><strong>Produto:</strong> ${esc(ordemAtual.produto_defeito || "-")}</div>
+          <div class='line'><strong>Observacao:</strong> ${esc(ordemAtual.observacao || "-")}</div>
 
           <div class='section'>
             <h3>Assinatura do Cliente</h3>
@@ -345,6 +347,16 @@
               <button class='btn btn-save' style='margin-top:8px;' type='button' onclick='adicionarPeca()'>Adicionar Peça</button>
               <button class='btn btn-scan' type='button' onclick='abrirScannerCamera()'>Ler pela Camera</button>
             ${itensHtml}
+          </div>
+
+          <div class='section'>
+            <h3>Reagendar por Falta de Peça</h3>
+            <div style='display:grid;grid-template-columns:1fr 1fr;gap:8px;'>
+              <input class='qtd-input' id='reag_data' type='date' value='${esc(ordemAtual.data_agendamento || "")}'>
+              <input class='qtd-input' id='reag_hora' type='time' value='${esc(ordemAtual.hora || "")}'>
+            </div>
+            <textarea id='reag_motivo' class='sign' style='margin-top:8px;min-height:70px;' placeholder='Ex: faltou a peça XYZ no estoque.'></textarea>
+            <button class='btn btn-reag' style='margin-top:8px;' type='button' onclick='reagendarFaltaPeca()'>Reagendar OS</button>
           </div>
         </article>
       `;
@@ -380,6 +392,29 @@
       const j = await r.json();
       if(!r.ok || !j.ok){ alert(j.erro || "Erro ao finalizar"); return; }
       alert("Atendimento enviado para conferência no caixa.");
+      window.location.href = caminhoServidor("/app_tecnico");
+    }
+
+    async function reagendarFaltaPeca(){
+      const data = (document.getElementById("reag_data")?.value || "").trim();
+      const hora = (document.getElementById("reag_hora")?.value || "").trim();
+      const motivo = (document.getElementById("reag_motivo")?.value || "").trim();
+
+      if(!data){ alert("Informe a nova data do atendimento."); return; }
+      if(motivo.length < 3){ alert("Informe o motivo do reagendamento."); return; }
+
+      const r = await fetch(caminhoServidor(`/api/tecnico/ordem/${osId}/reagendar`), {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          data_agendamento: data,
+          hora: hora,
+          motivo: motivo
+        })
+      });
+      const j = await r.json();
+      if(!r.ok || !j.ok){ alert(j.erro || "Erro ao reagendar OS"); return; }
+      alert(`OS reagendada para ${j.data_agendamento} ${j.hora}.`);
       window.location.href = caminhoServidor("/app_tecnico");
     }
 

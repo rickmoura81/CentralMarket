@@ -1,79 +1,184 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="pt-BR">
 <head>
+    <meta charset="UTF-8">
+    <title>Agenda da Semana</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f1f5f9;
+            margin: 0;
+            padding: 18px;
+            color: #0f172a;
+        }
 
-<title>Agenda da Semana</title>
+        .top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
 
-<style>
+        .title-filter {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
 
-body{
-font-family:Arial;
-background:#f4f6f9;
-padding:20px;
-}
+        .top h2 {
+            margin: 0;
+        }
 
-.container{
-display:grid;
-grid-template-columns:repeat(6,1fr);
-gap:10px;
-}
+        .btn-voltar {
+            background: #334155;
+            color: #fff;
+            text-decoration: none;
+            padding: 8px 12px;
+            border-radius: 7px;
+            font-size: 13px;
+        }
 
-.coluna{
-background:white;
-padding:10px;
-border-radius:6px;
-box-shadow:0 2px 4px rgba(0,0,0,0.1);
-}
+        .container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+        }
 
-.dia{
-font-weight:bold;
-margin-bottom:10px;
-}
+        .coluna {
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+            padding: 10px;
+            min-height: 140px;
+        }
 
-.servico{
-background:#ecf0f1;
-padding:6px;
-margin-bottom:5px;
-border-radius:4px;
-font-size:14px;
-}
+        .dia {
+            font-weight: bold;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 14px;
+        }
 
-</style>
+        .servico {
+            display: block;
+            text-decoration: none;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-left: 5px solid #94a3b8;
+            padding: 8px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            color: #0f172a;
+        }
 
+        .servico:hover {
+            background: #eef2ff;
+            border-color: #c7d2fe;
+        }
+
+        .servico.agendado { border-left-color: #2563eb; }
+        .servico.atendimento { border-left-color: #f59e0b; }
+        .servico.finalizado { border-left-color: #16a34a; }
+
+        .linha-1 {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+            font-size: 12px;
+        }
+
+        .hora {
+            font-weight: bold;
+        }
+
+        .status {
+            border-radius: 999px;
+            padding: 2px 7px;
+            color: #fff;
+            font-size: 11px;
+        }
+
+        .status.agendado { background: #2563eb; }
+        .status.atendimento { background: #f59e0b; }
+        .status.finalizado { background: #16a34a; }
+
+        .servico-nome {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+
+        .meta {
+            font-size: 12px;
+            color: #334155;
+            line-height: 1.5;
+        }
+
+        .vazio {
+            color: #64748b;
+            font-size: 12px;
+            background: #f8fafc;
+            border-radius: 7px;
+            padding: 8px;
+        }
+
+        @media (max-width: 720px) {
+            .top {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .title-filter {
+                justify-content: space-between;
+            }
+        }
+    </style>
 </head>
-
 <body>
+    <div class="top">
+        <div class="title-filter">
+            <h2 style="margin:0;">Agenda da Semana</h2>
+            <form method="GET" style="margin:0;display:flex;gap:8px;align-items:center;">
+                <label for="tecnico" style="font-size:13px;color:#334155;">Tecnico:</label>
+                <select id="tecnico" name="tecnico" onchange="this.form.submit()">
+                    <option value="">Todos os tecnicos</option>
+                    {% for t in tecnicos %}
+                    <option value="{{ t.nome }}" {% if tecnico_atual == t.nome %}selected{% endif %}>{{ t.nome }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+        <a class="btn-voltar" href="/agenda">Voltar</a>
+    </div>
 
-<h2>📅 Agenda da Semana</h2>
+    <div class="container">
+        {% for dia, servicos in dias.items() %}
+        <div class="coluna">
+            <div class="dia">{{ dia }}</div>
 
-<div class="container">
-
-{% for dia, servicos in dias.items() %}
-
-<div class="coluna">
-
-<div class="dia">
-📆 {{ dia }}
-</div>
-
-{% for os in servicos %}
-
-<div class="servico">
-
-⏰ {{ os.hora }}  
-🔧 {{ os.servico_nome }}  
-👤 {{ os.cliente }}
-
-</div>
-
-{% endfor %}
-
-</div>
-
-{% endfor %}
-
-</div>
-
+            {% if servicos %}
+                {% for os in servicos %}
+                    {% set st = (os.status or 'Agendado') %}
+                    {% set st_class = 'agendado' if st == 'Agendado' else ('atendimento' if st == 'Em Atendimento' else 'finalizado') %}
+                    <a class="servico {{ st_class }}" href="/ordem/{{ os.id }}" title="Abrir OS #{{ os.id }}">
+                        <div class="linha-1">
+                            <span class="hora">{{ os.hora or '--:--' }}</span>
+                            <span class="status {{ st_class }}">{{ st }}</span>
+                        </div>
+                        <div class="servico-nome">OS #{{ os.id }} - {{ os.servico_nome }}</div>
+                        <div class="meta">Cliente: {{ os.cliente or '-' }}</div>
+                        <div class="meta">Tecnico: {{ os.tecnico or '-' }}</div>
+                    </a>
+                {% endfor %}
+            {% else %}
+                <div class="vazio">Sem atendimentos neste dia.</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
 </body>
 </html>
