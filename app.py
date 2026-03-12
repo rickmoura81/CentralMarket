@@ -12,16 +12,14 @@ from urllib import error as urllib_error
 from urllib import request as urllib_request
 from urllib.parse import urlparse
 
-from flask import Flask
+from flask import Flask, session
 from werkzeug.security import generate_password_hash, check_password_hash
 
 
 app = Flask(__name__)
 
-# chave secreta da sessão
 app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 
-# configurações do Flask
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE=os.environ.get("SESSION_COOKIE_SAMESITE", "Lax"),
@@ -29,6 +27,7 @@ app.config.update(
     PERMANENT_SESSION_LIFETIME=timedelta(hours=12),
     MAX_CONTENT_LENGTH=8 * 1024 * 1024,
 )
+
 ROLE_LEVEL = {
     "funcionario": 1,
     "gerente": 2,
