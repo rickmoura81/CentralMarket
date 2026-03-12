@@ -1,23 +1,23 @@
-from flask import Flask, render_template, request, redirect, jsonify, session, url_for, send_from_directory, Response
-from banco import criar_tabelas, conectar
-from datetime import datetime, timedelta
-import sqlite3
 import os
-import uuid
-import base64
 import json
 import re
 import secrets
 import time
 import textwrap
 import unicodedata
+
+from datetime import timedelta
 from urllib import error as urllib_error
 from urllib import request as urllib_request
 from urllib.parse import urlparse
+
+from flask import Flask
 from werkzeug.security import generate_password_hash, check_password_hash
+
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
+
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE=os.environ.get("SESSION_COOKIE_SAMESITE", "Lax"),
@@ -25,7 +25,6 @@ app.config.update(
     PERMANENT_SESSION_LIFETIME=timedelta(hours=12),
     MAX_CONTENT_LENGTH=8 * 1024 * 1024,
 )
-
 ROLE_LEVEL = {
     "funcionario": 1,
     "gerente": 2,
@@ -7216,4 +7215,5 @@ if __name__ == "__main__":
     elif use_adhoc_ssl:
         ssl_context = "adhoc"
 
-    app.run(host=host, port=port, debug=debug, ssl_context=ssl_context)
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)
