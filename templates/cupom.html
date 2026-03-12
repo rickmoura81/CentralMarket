@@ -54,10 +54,13 @@ Funcionario: #{{ pedido.funcionario_id or "-" }}{% if pedido.funcionario_nome %}
 {{ item.quantidade }} x {{ "%.2f"|format(item.preco_unitario) }}
 = {{ "%.2f"|format(item.subtotal) }}<br>
 {% endfor %}
+{% if not itens %}
+Nenhum item encontrado para este pedido.<br>
+{% endif %}
 
 <hr>
 
-TOTAL: R$ {{ "%.2f"|format(pedido.total) }}<br>
+TOTAL: R$ {{ "%.2f"|format(total_pedido) }}<br>
 {% if pedido.desconto_valor and pedido.desconto_valor > 0 %}
 Desconto: R$ {{ "%.2f"|format(pedido.desconto_valor) }}
 {% if pedido.desconto_tipo %} ({{ pedido.desconto_tipo }}){% endif %}<br>

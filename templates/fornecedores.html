@@ -167,10 +167,9 @@ button:hover {
         <br>
 
         <a href="/editar_fornecedor/{{ fornecedor.id }}">✏️ Editar</a> |
-        <a href="/excluir_fornecedor/{{ fornecedor.id }}"
-           onclick="return confirm('Deseja excluir este fornecedor?')">
-           🗑 Excluir
-        </a>
+        <form method="POST" action="/excluir_fornecedor/{{ fornecedor.id }}" style="display:inline;" onsubmit="return confirm('Deseja excluir este fornecedor?')">
+            <button type="submit" style="background:none;color:#c0392b;padding:0;border:none;">🗑 Excluir</button>
+        </form>
 
     </div>
     {% endfor %}

@@ -23,7 +23,7 @@ button{background:#27ae60;}
 
 <form method="POST">
 <input type="text" name="nome" value="{{ funcionario.nome or '' }}" placeholder="Nome" required>
-<input type="text" name="cpf" value="{{ funcionario.cpf or '' }}" placeholder="CPF" required>
+<input type="text" name="cpf" id="cpfFuncionarioEdit" value="{{ funcionario.cpf or '' }}" placeholder="CPF" required inputmode="numeric">
 
 <input type="text" name="telefone" value="{{ funcionario.telefone or '' }}" placeholder="Telefone">
 <input type="text" name="whatsapp" value="{{ funcionario.whatsapp or '' }}" placeholder="WhatsApp">
@@ -57,5 +57,20 @@ button{background:#27ae60;}
 </form>
 </div>
 </div>
+<script>
+function formatarCpf(valor){
+const digits=(valor || "").replace(/\D/g,'').slice(0,11);
+if(digits.length<=3) return digits;
+if(digits.length<=6) return `${digits.slice(0,3)}.${digits.slice(3)}`;
+if(digits.length<=9) return `${digits.slice(0,3)}.${digits.slice(3,6)}.${digits.slice(6)}`;
+return `${digits.slice(0,3)}.${digits.slice(3,6)}.${digits.slice(6,9)}-${digits.slice(9)}`;
+}
+
+const cpfFuncionarioEdit = document.getElementById("cpfFuncionarioEdit");
+cpfFuncionarioEdit.addEventListener("input", function(){
+this.value = formatarCpf(this.value);
+});
+cpfFuncionarioEdit.value = formatarCpf(cpfFuncionarioEdit.value);
+</script>
 </body>
 </html>

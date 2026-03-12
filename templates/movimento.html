@@ -32,6 +32,39 @@ width:60%;
 padding:20px;
 }
 
+.carrinho-topo{
+display:flex;
+align-items:center;
+justify-content:space-between;
+gap:12px;
+margin-bottom:16px;
+flex-wrap:wrap;
+}
+
+.carrinho-topo h2{
+margin:0;
+}
+
+.carrinho-links{
+display:flex;
+gap:8px;
+flex-wrap:wrap;
+}
+
+.carrinho-link{
+display:inline-block;
+padding:8px 12px;
+background:#2c3e50;
+color:white;
+text-decoration:none;
+border-radius:6px;
+font-size:14px;
+}
+
+.carrinho-link:hover{
+background:#1f2d3a;
+}
+
 input{
 width:100%;
 padding:10px;
@@ -146,7 +179,7 @@ font-size:22px;
 
 <h2>🔎 Buscar</h2>
 
-<input type="text" id="buscaProduto" placeholder="Produto ou Serviço">
+<input type="text" id="buscaProduto" placeholder="Produto ou Serviço" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
 
 <input type="number" id="quantidadeProduto" value="1" min="1">
 
@@ -158,7 +191,13 @@ font-size:22px;
 
 <div class="carrinho-area">
 
+<div class="carrinho-topo">
 <h2>🛒 Carrinho</h2>
+<div class="carrinho-links">
+<a class="carrinho-link" href="/agenda_semana">Agenda da Semana</a>
+<a class="carrinho-link" href="/">Voltar ao Dashboard</a>
+</div>
+</div>
 
 <table>
 
@@ -213,8 +252,8 @@ overflow-y:auto;
 ">
 <h3 style="margin:0 0 10px 0;text-align:center;">Finalização do Pedido</h3>
 
-<input type="number" id="funcionarioId" placeholder="ID do Funcionário" min="1">
-<input type="password" id="funcionarioSenha" placeholder="Senha do Funcionário">
+<input type="number" id="funcionarioId" placeholder="ID do Funcionário" min="1" autocomplete="off">
+<input type="password" id="funcionarioSenha" placeholder="Senha do Funcionário" autocomplete="new-password">
 
 <div style="display:flex;gap:8px;">
     <select id="descontoTipo" onchange="atualizarResumoFinalizacao()">
@@ -274,10 +313,10 @@ max-height:85vh;
 overflow-y:auto;
 ">
 
-<h3 style="margin-top:0;text-align:center;">📅 Agendar Serviço</h3>
+<h3 style="margin-top:0;text-align:center;">📅 Agendar Atendimento</h3>
 
 <label>Cliente</label>
-<input type="text" id="buscaClienteAgendamento" style="width:100%;padding:8px;margin-bottom:8px;" placeholder="Digite nome, telefone, CPF ou CNPJ">
+<input type="text" id="buscaClienteAgendamento" style="width:100%;padding:8px;margin-bottom:8px;" placeholder="Digite nome, telefone, CPF ou CNPJ" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
 <div id="clienteSelecionadoInfo" style="font-size:13px;color:#2c3e50;margin-bottom:8px;"></div>
 <ul id="resultadoBuscaCliente" style="list-style:none;padding:0;margin:0 0 10px 0;max-height:120px;overflow-y:auto;border:1px solid #eee;border-radius:6px;"></ul>
 <button type="button" id="btnCadastrarCliente" style="display:none;width:100%;padding:8px;margin-bottom:10px;background:#2980b9;color:white;border:none;border-radius:6px;cursor:pointer;">
@@ -285,12 +324,16 @@ Cadastrar cliente
 </button>
 <div id="cadastroClienteRapidoBox" style="display:none;border:1px solid #ddd;border-radius:8px;padding:10px;margin-bottom:12px;background:#fcfcfc;">
 <div style="font-weight:bold;margin-bottom:8px;">Novo cliente rapido</div>
-<input type="text" id="novoClienteNome" style="width:100%;padding:8px;margin-bottom:8px;" placeholder="Nome do cliente">
-<input type="text" id="novoClienteCpf" style="width:100%;padding:8px;margin-bottom:8px;" placeholder="CPF (obrigatorio)">
-<input type="text" id="novoClienteTelefone" style="width:100%;padding:8px;margin-bottom:8px;" placeholder="Telefone">
-<input type="text" id="novoClienteWhatsapp" style="width:100%;padding:8px;margin-bottom:8px;" placeholder="WhatsApp">
-<input type="text" id="novoClienteEndereco" style="width:100%;padding:8px;margin-bottom:8px;" placeholder="Endereco (obrigatorio)">
-<input type="text" id="novoClienteNumero" style="width:100%;padding:8px;margin-bottom:8px;" placeholder="Numero (obrigatorio)">
+<input type="text" id="novoClienteNome" style="width:100%;padding:8px;margin-bottom:8px;" placeholder="Nome do cliente" autocomplete="off">
+<input type="text" id="novoClienteCpf" style="width:100%;padding:8px;margin-bottom:8px;" placeholder="CPF (obrigatorio)" autocomplete="off" inputmode="numeric">
+<input type="text" id="novoClienteTelefone" style="width:100%;padding:8px;margin-bottom:8px;" placeholder="Telefone" autocomplete="off">
+<input type="text" id="novoClienteWhatsapp" style="width:100%;padding:8px;margin-bottom:8px;" placeholder="WhatsApp" autocomplete="off">
+<input type="text" id="novoClienteCep" style="width:100%;padding:8px;margin-bottom:8px;" placeholder="CEP" autocomplete="off" inputmode="numeric">
+<input type="text" id="novoClienteEndereco" style="width:100%;padding:8px;margin-bottom:8px;" placeholder="Endereco (obrigatorio)" autocomplete="off">
+<input type="text" id="novoClienteNumero" style="width:100%;padding:8px;margin-bottom:8px;" placeholder="Numero (obrigatorio)" autocomplete="off">
+<input type="text" id="novoClienteBairro" style="width:100%;padding:8px;margin-bottom:8px;" placeholder="Bairro" autocomplete="off">
+<input type="text" id="novoClienteCidade" style="width:100%;padding:8px;margin-bottom:8px;" placeholder="Cidade" autocomplete="off">
+<div id="novoClienteCepStatus" style="display:none;font-size:12px;margin:-2px 0 8px 0;color:#7f8c8d;"></div>
 <div style="display:flex;gap:8px;">
 <button type="button" id="btnSalvarClienteRapido" style="flex:1;padding:8px;background:#27ae60;color:white;border:none;border-radius:6px;cursor:pointer;">Salvar</button>
 <button type="button" id="btnCancelarClienteRapido" style="flex:1;padding:8px;background:#7f8c8d;color:white;border:none;border-radius:6px;cursor:pointer;">Cancelar</button>
@@ -301,16 +344,16 @@ Cadastrar cliente
 <select id="tecnicoSelecionado" style="width:100%;padding:8px;margin-bottom:10px;"></select>
 
 <label>Data</label>
-<input type="date" id="dataAgendamento" style="width:100%;padding:8px;margin-bottom:10px;">
+<input type="date" id="dataAgendamento" style="width:100%;padding:8px;margin-bottom:10px;" autocomplete="off">
 
 <label>Hora</label>
-<input type="time" id="horaAgendamento" style="width:100%;padding:8px;margin-bottom:20px;">
+<input type="time" id="horaAgendamento" style="width:100%;padding:8px;margin-bottom:20px;" autocomplete="off">
 
 <label>Defeito reclamado</label>
-<textarea id="defeitoReclamado" rows="3" style="width:100%;padding:8px;margin-bottom:10px;resize:vertical;" placeholder="Ex: não liga, tela sem imagem, barulho no motor..."></textarea>
+<textarea id="defeitoReclamado" rows="3" style="width:100%;padding:8px;margin-bottom:10px;resize:vertical;" placeholder="Ex: não liga, tela sem imagem, barulho no motor..." autocomplete="off"></textarea>
 
-<label>Descrição do produto</label>
-<input type="text" id="produtoDefeito" style="width:100%;padding:8px;margin-bottom:20px;" placeholder="Ex: Geladeira Brastemp BRM44, TV Samsung 50...">
+<label>Produto com Defeito</label>
+<input type="text" id="produtoDefeito" style="width:100%;padding:8px;margin-bottom:20px;" placeholder="Ex: Geladeira Brastemp BRM44, TV Samsung 50..." autocomplete="off">
 
 <div id="agendaTecnicoBox" style="display:none;margin-bottom:20px;border:1px solid #ddd;border-radius:8px;padding:10px;background:#fafafa;">
 <div style="font-weight:bold;margin-bottom:8px;">Agenda do técnico no dia</div>
@@ -873,6 +916,84 @@ function selecionarCliente(cliente){
     document.getElementById("cadastroClienteRapidoBox").style.display = "none"
 }
 
+function formatarCpfInput(event){
+    const digits = (event.target.value || "").replace(/\D/g, "").slice(0, 11)
+    let formatado = digits
+
+    if(digits.length > 3){
+        formatado = `${digits.slice(0, 3)}.${digits.slice(3)}`
+    }
+    if(digits.length > 6){
+        formatado = `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`
+    }
+    if(digits.length > 9){
+        formatado = `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`
+    }
+
+    event.target.value = formatado
+}
+
+function formatarCepInput(event){
+    const digits = (event.target.value || "").replace(/\D/g, "").slice(0, 8)
+    let formatado = digits
+
+    if(digits.length > 5){
+        formatado = `${digits.slice(0, 5)}-${digits.slice(5)}`
+    }
+
+    event.target.value = formatado
+}
+
+async function preencherEnderecoPorCep(){
+    const cepInput = document.getElementById("novoClienteCep")
+    const status = document.getElementById("novoClienteCepStatus")
+    const cep = (cepInput.value || "").replace(/\D/g, "")
+
+    status.style.display = "none"
+    status.innerText = ""
+
+    if(cep.length === 0){
+        return
+    }
+
+    if(cep.length < 8){
+        status.innerText = "Informe um CEP valido com 8 digitos."
+        status.style.color = "#c0392b"
+        status.style.display = "block"
+        return
+    }
+
+    status.innerText = "Buscando CEP..."
+    status.style.color = "#7f8c8d"
+    status.style.display = "block"
+
+    try{
+        const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`)
+        const data = await res.json()
+
+        if(!res.ok || data.erro){
+            throw new Error("CEP nao encontrado")
+        }
+
+        if(data.logradouro){
+            document.getElementById("novoClienteEndereco").value = data.logradouro
+        }
+        if(data.bairro){
+            document.getElementById("novoClienteBairro").value = data.bairro
+        }
+        if(data.localidade){
+            document.getElementById("novoClienteCidade").value = data.localidade
+        }
+
+        status.innerText = `CEP localizado${data.uf ? " - " + data.uf : ""}`
+        status.style.color = "#27ae60"
+    }catch(_erro){
+        status.innerText = "Nao foi possivel preencher o endereco pelo CEP."
+        status.style.color = "#c0392b"
+        status.style.display = "block"
+    }
+}
+
 function buscarClientesInteligente(){
     const termo = document.getElementById("buscaClienteAgendamento").value.trim()
     const lista = document.getElementById("resultadoBuscaCliente")
@@ -903,8 +1024,13 @@ function buscarClientesInteligente(){
                 document.getElementById("novoClienteCpf").value = ""
                 document.getElementById("novoClienteTelefone").value = ""
                 document.getElementById("novoClienteWhatsapp").value = ""
+                document.getElementById("novoClienteCep").value = ""
                 document.getElementById("novoClienteEndereco").value = ""
+                document.getElementById("novoClienteBairro").value = ""
+                document.getElementById("novoClienteCidade").value = ""
                 document.getElementById("novoClienteNumero").value = ""
+                document.getElementById("novoClienteCepStatus").style.display = "none"
+                document.getElementById("novoClienteCepStatus").innerText = ""
             }
             return
         }
@@ -933,7 +1059,10 @@ function cadastrarClienteRapido(){
     const cpf = document.getElementById("novoClienteCpf").value.trim()
     const telefone = document.getElementById("novoClienteTelefone").value.trim()
     const whatsapp = document.getElementById("novoClienteWhatsapp").value.trim()
+    const cep = document.getElementById("novoClienteCep").value.trim()
     const endereco = document.getElementById("novoClienteEndereco").value.trim()
+    const bairro = document.getElementById("novoClienteBairro").value.trim()
+    const cidade = document.getElementById("novoClienteCidade").value.trim()
     const numero = document.getElementById("novoClienteNumero").value.trim()
 
     if(nome.length < 3){
@@ -965,7 +1094,10 @@ function cadastrarClienteRapido(){
             cpf: cpf,
             telefone: telefone,
             whatsapp: whatsapp,
+            cep: cep,
             endereco: endereco,
+            bairro: bairro,
+            cidade: cidade,
             numero: numero
         })
     })
@@ -994,6 +1126,9 @@ document.getElementById("dataAgendamento").addEventListener("change", carregarAg
 document.getElementById("buscaClienteAgendamento").addEventListener("input", buscarClientesInteligente)
 document.getElementById("btnSalvarClienteRapido").addEventListener("click", cadastrarClienteRapido)
 document.getElementById("btnCancelarClienteRapido").addEventListener("click", cancelarCadastroClienteRapido)
+document.getElementById("novoClienteCpf").addEventListener("input", formatarCpfInput)
+document.getElementById("novoClienteCep").addEventListener("input", formatarCepInput)
+document.getElementById("novoClienteCep").addEventListener("blur", preencherEnderecoPorCep)
 atualizarResumoFinalizacao()
 
 </script>

@@ -55,12 +55,12 @@ display:none;
 <input name="telefone" value="{{ cliente.telefone }}" placeholder="Telefone">
 <input name="whatsapp" value="{{ cliente.whatsapp }}" placeholder="WhatsApp">
 <input name="email" value="{{ cliente.email }}" placeholder="Email">
-<input name="cpf" value="{{ cliente.cpf }}" placeholder="CPF">
+<input name="cpf" id="cpfEdit" value="{{ cliente.cpf }}" placeholder="CPF" inputmode="numeric">
 <input name="cnpj" value="{{ cliente.cnpj }}" placeholder="CNPJ">
 
 <h3>Endereço Principal</h3>
 
-<input name="cep" id="cepEdit" value="{{ cliente.cep }}" placeholder="CEP">
+<input name="cep" id="cepEdit" value="{{ cliente.cep }}" placeholder="CEP" inputmode="numeric">
 <input name="endereco" value="{{ cliente.endereco }}" placeholder="Rua">
 <input name="numero" value="{{ cliente.numero }}" placeholder="Número">
 <input name="bairro" value="{{ cliente.bairro }}" placeholder="Bairro">
@@ -72,7 +72,7 @@ display:none;
 
 <h3>Endereço Entrega / Serviço</h3>
 
-<input name="cep_entrega" id="cepEntregaEdit" value="{{ cliente.cep_entrega }}" placeholder="CEP entrega">
+<input name="cep_entrega" id="cepEntregaEdit" value="{{ cliente.cep_entrega }}" placeholder="CEP entrega" inputmode="numeric">
 <input name="endereco_entrega" value="{{ cliente.endereco_entrega }}" placeholder="Rua">
 <input name="numero_entrega" value="{{ cliente.numero_entrega }}" placeholder="Número">
 <input name="bairro_entrega" value="{{ cliente.bairro_entrega }}" placeholder="Bairro">
@@ -87,6 +87,20 @@ display:none;
 </div>
 
 <script>
+function formatarCpf(valor){
+const digits=(valor || "").replace(/\D/g,'').slice(0,11);
+if(digits.length<=3) return digits;
+if(digits.length<=6) return `${digits.slice(0,3)}.${digits.slice(3)}`;
+if(digits.length<=9) return `${digits.slice(0,3)}.${digits.slice(3,6)}.${digits.slice(6)}`;
+return `${digits.slice(0,3)}.${digits.slice(3,6)}.${digits.slice(6,9)}-${digits.slice(9)}`;
+}
+
+function formatarCep(valor){
+const digits=(valor || "").replace(/\D/g,'').slice(0,8);
+if(digits.length<=5) return digits;
+return `${digits.slice(0,5)}-${digits.slice(5)}`;
+}
+
 function mostrarMapa(end){
 const card=document.getElementById("cardMapaEdit");
 const mapa=document.getElementById("mapaEdit");
@@ -94,6 +108,18 @@ card.style.display="block";
 mapa.innerHTML=`<iframe width="100%" height="260" style="border:0"
 src="https://www.google.com/maps?q=${encodeURIComponent(end)}&output=embed"></iframe>`;
 }
+
+document.getElementById("cpfEdit").addEventListener("input", function(){
+this.value=formatarCpf(this.value);
+});
+
+document.getElementById("cepEdit").addEventListener("input", function(){
+this.value=formatarCep(this.value);
+});
+
+document.getElementById("cepEntregaEdit").addEventListener("input", function(){
+this.value=formatarCep(this.value);
+});
 
 // CEP principal
 document.getElementById("cepEdit").addEventListener("blur", function(){
@@ -125,6 +151,10 @@ document.querySelector("input[name='bairro_entrega']").value=d.bairro;
 document.querySelector("input[name='cidade_entrega']").value=d.localidade;
 });
 });
+
+document.getElementById("cpfEdit").value = formatarCpf(document.getElementById("cpfEdit").value);
+document.getElementById("cepEdit").value = formatarCep(document.getElementById("cepEdit").value);
+document.getElementById("cepEntregaEdit").value = formatarCep(document.getElementById("cepEntregaEdit").value);
 </script>
 
 </body>

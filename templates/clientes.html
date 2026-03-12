@@ -103,7 +103,7 @@ button:hover { background:#219150; }
 
 <input name="nome" placeholder="Nome">
 <input name="razao_social" placeholder="Razão Social">
-<input name="cpf" placeholder="CPF">
+<input name="cpf" id="cpf" placeholder="CPF" inputmode="numeric">
 <input name="cnpj" placeholder="CNPJ">
 <input name="telefone" placeholder="Telefone">
 <input name="whatsapp" placeholder="WhatsApp">
@@ -113,7 +113,7 @@ button:hover { background:#219150; }
 <div class="section-title">Endereço Principal</div>
 
 <div class="grid">
-<input name="cep" id="cep" placeholder="CEP">
+<input name="cep" id="cep" placeholder="CEP" inputmode="numeric">
 <input name="endereco" placeholder="Rua">
 <input name="numero" placeholder="Número">
 <input name="bairro" placeholder="Bairro">
@@ -127,7 +127,7 @@ button:hover { background:#219150; }
 <div class="section-title">Endereço Entrega / Serviço</div>
 
 <div class="grid">
-<input name="cep_entrega" id="cepEntrega" placeholder="CEP entrega">
+<input name="cep_entrega" id="cepEntrega" placeholder="CEP entrega" inputmode="numeric">
 <input name="endereco_entrega" placeholder="Rua">
 <input name="numero_entrega" placeholder="Número">
 <input name="bairro_entrega" placeholder="Bairro">
@@ -147,6 +147,19 @@ button:hover { background:#219150; }
 </div>
 
 <script>
+function formatarCpf(valor){
+    const digits=(valor || "").replace(/\D/g,'').slice(0,11);
+    if(digits.length<=3) return digits;
+    if(digits.length<=6) return `${digits.slice(0,3)}.${digits.slice(3)}`;
+    if(digits.length<=9) return `${digits.slice(0,3)}.${digits.slice(3,6)}.${digits.slice(6)}`;
+    return `${digits.slice(0,3)}.${digits.slice(3,6)}.${digits.slice(6,9)}-${digits.slice(9)}`;
+}
+
+function formatarCep(valor){
+    const digits=(valor || "").replace(/\D/g,'').slice(0,8);
+    if(digits.length<=5) return digits;
+    return `${digits.slice(0,5)}-${digits.slice(5)}`;
+}
 
 // ===== BUSCA CLIENTE =====
 document.getElementById("buscaCliente").addEventListener("input", function(){
@@ -169,6 +182,18 @@ document.getElementById("buscaCliente").addEventListener("input", function(){
             ul.appendChild(li);
         });
     });
+});
+
+document.getElementById("cpf").addEventListener("input", function(){
+    this.value = formatarCpf(this.value);
+});
+
+document.getElementById("cep").addEventListener("input", function(){
+    this.value = formatarCep(this.value);
+});
+
+document.getElementById("cepEntrega").addEventListener("input", function(){
+    this.value = formatarCep(this.value);
 });
 
 // ===== MOSTRAR MAPA =====

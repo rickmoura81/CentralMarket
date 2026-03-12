@@ -150,7 +150,7 @@ card-finalizado
 </div>
 
 <div class="servico">
-🔧 {{ os.servico_nome }}
+🔧 Produto com Defeito: {{ os.servico_nome }}
 </div>
 
 <div class="cliente">
@@ -173,20 +173,20 @@ Status: {{ os.status }}
 
 {% if os.status == "Agendado" %}
 
-<a href="{{ url_for('mudar_status', id=os.id, status='Em Atendimento', tecnico=request.args.get('tecnico','')) }}">
-<button class="btn-iniciar">▶ Iniciar</button>
-</a>
+<form method="POST" action="{{ url_for('mudar_status', id=os.id, status='Em Atendimento', tecnico=request.args.get('tecnico','')) }}" style="display:inline;">
+<button type="submit" class="btn-iniciar">▶ Iniciar</button>
+</form>
 
 {% elif os.status == "Em Atendimento" %}
 
-<a href="{{ url_for('mudar_status', id=os.id, status='Finalizado', tecnico=request.args.get('tecnico','')) }}">
-<button class="btn-finalizar">✔ Finalizar</button>
-</a>
+<form method="POST" action="{{ url_for('mudar_status', id=os.id, status='Finalizado', tecnico=request.args.get('tecnico','')) }}" style="display:inline;">
+<button type="submit" class="btn-finalizar">✔ Finalizar</button>
+</form>
 
 {% else %}
 
 <span style="color:green;font-weight:bold;">
-✔ Serviço concluído
+✔ Atendimento concluído
 </span>
 
 {% endif %}

@@ -96,33 +96,10 @@ ASSISTENCIA_GREETING_WORDS = {
     "oi",
     "ola",
     "olá",
-    "ola tudo bem",
-    "olá tudo bem",
-    "oi tudo bem",
-    "opa",
-    "opa tudo bem",
-    "e ai",
-    "e ai tudo bem",
-    "e aí",
-    "e aí tudo bem",
     "bom dia",
     "boa tarde",
     "boa noite",
-    "seja bem-vindo",
-    "seja bem vindo",
 }
-ASSISTENCIA_GREETING_MESSAGES = (
-    "Ola! Como posso ajudar?",
-    "Oi! Em que posso ajudar voce hoje?",
-    "Ola! Bem-vindo ao atendimento.",
-    "Oi! Vamos comecar seu atendimento.",
-    "Ola! Sou o assistente da assistencia tecnica.",
-    "Oi! Estou aqui para ajudar com seu atendimento.",
-    "Ola! Vamos agendar seu atendimento tecnico.",
-    "Oi! Vou ajudar voce a abrir um chamado.",
-    "Ola! Vamos resolver seu problema.",
-    "Oi! Pode me contar o que aconteceu?",
-)
 ASSISTENCIA_FLOW = [
     "nome",
     "whatsapp",
@@ -145,30 +122,6 @@ ASSISTENCIA_QUESTIONS = {
     "dia": "Perfeito.\nQual dia voce estara em casa para receber o tecnico?",
     "horario": "Temos horarios disponiveis:\n09:00\n14:00\n16:00\n\nQual horario prefere?",
 }
-ASSISTENCIA_DAY_QUESTIONS = (
-    "Perfeito.\nQual dia voce estara em casa para receber o tecnico?",
-    "Em qual dia podemos enviar o tecnico ate sua casa?",
-    "Qual a melhor data para o atendimento?",
-    "Que dia voce prefere que o tecnico va ate sua casa?",
-    "Qual dia fica melhor para agendarmos a visita?",
-    "Quando podemos marcar a visita do tecnico?",
-    "Voce pode informar um dia para o atendimento?",
-    "Qual data voce estara disponivel?",
-    "Em qual dia podemos realizar o atendimento tecnico?",
-    "Qual o melhor dia para resolvermos o problema?",
-)
-ASSISTENCIA_HOUR_QUESTIONS = (
-    "Qual horario voce estara em casa?",
-    "Em qual periodo voce prefere o atendimento?",
-    "Qual horario fica melhor para a visita do tecnico?",
-    "Voce prefere atendimento de manha, tarde ou noite?",
-    "Que horas podemos enviar o tecnico?",
-    "Entre quais horarios voce estara disponivel?",
-    "Qual o melhor horario para o atendimento?",
-    "O tecnico pode ir em qual periodo do dia?",
-    "Voce estara disponivel em que horario?",
-    "Pode me informar um horario aproximado?",
-)
 ASSISTENCIA_DEFAULT_WHATSAPP = "5511999999999"
 ASSISTENCIA_ALLOWED_OS_STATUS = {"Agendado", "Em Atendimento", "Finalizado"}
 AUTH_RATE_LIMITS = {}
@@ -349,26 +302,6 @@ def register_auth_failure(chave):
 
 def clear_auth_failures(chave):
     AUTH_RATE_LIMITS.pop(chave, None)
-
-
-def get_assistencia_question(field):
-    if field == "dia":
-        return ASSISTENCIA_DAY_QUESTIONS[secrets.randbelow(len(ASSISTENCIA_DAY_QUESTIONS))]
-    if field == "horario":
-        return ASSISTENCIA_HOUR_QUESTIONS[secrets.randbelow(len(ASSISTENCIA_HOUR_QUESTIONS))]
-    return ASSISTENCIA_QUESTIONS[field]
-
-
-def get_assistencia_greeting_message():
-    return ASSISTENCIA_GREETING_MESSAGES[secrets.randbelow(len(ASSISTENCIA_GREETING_MESSAGES))]
-
-
-def build_assistencia_horario_prompt(customer_data, horarios_lista, prefixo=""):
-    pergunta = get_assistencia_question("horario")
-    return (
-        f"{prefixo}Temos estes horarios disponiveis para {format_assistencia_day(customer_data.get('dia'))}:\n"
-        f"{chr(10).join(horarios_lista)}\n\n{pergunta}"
-    )
 
 
 def get_assistencia_state():
@@ -858,7 +791,7 @@ def mensagem_inicial_assistencia(customer_data):
         proxima = proxima_pergunta_assistencia(customer_data)
         if proxima:
             return f"Ola, {customer_data['nome'].strip()}.\n{proxima}"
-    return f"{get_assistencia_greeting_message()}\n{ASSISTENCIA_QUESTIONS['nome']}"
+    return ASSISTENCIA_QUESTIONS["nome"]
 
 
 def formatar_status_portal(status):
@@ -1604,14 +1537,14 @@ def proxima_pergunta_assistencia(customer_data, resposta_prefixo=""):
         )
         if not horarios_lista:
             return f"{resposta_prefixo}Nao ha horarios livres nessa data. Escolha outro dia para o atendimento."
-        return build_assistencia_horario_prompt(customer_data, horarios_lista, resposta_prefixo)
+        return f"{resposta_prefixo}Temos estes horarios disponiveis para {format_assistencia_day(customer_data.get('dia'))}:\n{chr(10).join(horarios_lista)}\n\nQual horario prefere?"
     if upcoming_field == "problema":
         service_type = customer_data.get("service_type")
         if service_type == "instalacao":
             return f"{resposta_prefixo}O que voce precisa instalar e qual e a necessidade no local?"
         if service_type == "orcamento":
             return f"{resposta_prefixo}Descreva rapidamente o que voce precisa para eu registrar o pedido de orcamento."
-    return f"{resposta_prefixo}{get_assistencia_question(upcoming_field)}"
+    return f"{resposta_prefixo}{ASSISTENCIA_QUESTIONS[upcoming_field]}"
 
 
 def should_autostart_booking(customer_data, message, extracted):
@@ -2788,7 +2721,7 @@ def assistencia_tecnica_chat():
     resposta_prefixo = ""
 
     if current_field == "nome" and is_assistencia_greeting(prompt):
-        return jsonify({"answer": f"{get_assistencia_greeting_message()}\n{ASSISTENCIA_QUESTIONS['nome']}"})
+        return jsonify({"answer": ASSISTENCIA_QUESTIONS["nome"]})
 
     if intent == "cancelar_fluxo":
         clear_assistencia_state()
@@ -2875,7 +2808,7 @@ def assistencia_tecnica_chat():
             customer_data["dia"] = ""
             save_assistencia_state(customer_data)
             return jsonify({"answer": "Nao ha horarios livres nessa data. Informe outro dia para remarcar."})
-        return jsonify({"answer": build_assistencia_horario_prompt(customer_data, horarios_lista)})
+        return jsonify({"answer": f"Horarios disponiveis para {format_assistencia_day(customer_data.get('dia'))}:\n{chr(10).join(horarios_lista)}\n\nQual horario prefere?"})
 
     if pending_action == "reagendar_horario":
         horarios_lista = filtrar_horarios_preferidos(
@@ -2948,7 +2881,7 @@ def assistencia_tecnica_chat():
         customer_data["endereco"] = montar_endereco_assistencia(customer_data)
         customer_data.pop("pending_action", None)
         save_assistencia_state(customer_data)
-        return jsonify({"answer": get_assistencia_question("dia")})
+        return jsonify({"answer": ASSISTENCIA_QUESTIONS["dia"]})
 
     if pending_action == "triagem_tecnica":
         perguntas = customer_data.get("triagem_perguntas") or []
@@ -2983,7 +2916,7 @@ def assistencia_tecnica_chat():
                     customer_data["dia"] = ""
                     save_assistencia_state(customer_data)
                     return jsonify({"answer": "Nao ha horarios livres nessa data. Escolha outro dia para o atendimento."})
-                return jsonify({"answer": build_assistencia_horario_prompt(customer_data, horarios, "Esse horario acabou de ficar indisponivel.\n")})
+                return jsonify({"answer": f"Esse horario acabou de ficar indisponivel.\nHorarios livres para {format_assistencia_day(customer_data.get('dia'))}:\n{horarios}\n\nQual horario prefere?"})
 
             if tecnico:
                 customer_data["tecnico_sugerido_id"] = tecnico["id"]
@@ -3021,7 +2954,7 @@ def assistencia_tecnica_chat():
         save_assistencia_state(customer_data)
         if field == "endereco":
             return jsonify({"answer": f"{customer_data.get('nome', '').strip()}, qual e o endereco para o atendimento? Voce pode informar o endereco completo ou enviar o CEP."})
-        return jsonify({"answer": get_assistencia_question(field)})
+        return jsonify({"answer": ASSISTENCIA_QUESTIONS[field]})
 
     if customer_data.get("intent") in {"reagendar", "consultar_os"}:
         whatsapp_extraido = extract_assistencia_fields(prompt).get("whatsapp")
@@ -3169,8 +3102,8 @@ def assistencia_tecnica_chat():
                 customer_data["dia"] = ""
                 save_assistencia_state(customer_data)
                 return jsonify({"answer": f"{resposta_prefixo}Nao ha horarios livres nessa data. Escolha outro dia para o atendimento."})
-            return jsonify({"answer": build_assistencia_horario_prompt(customer_data, horarios_lista, resposta_prefixo)})
-        return jsonify({"answer": f"{resposta_prefixo}{get_assistencia_question(upcoming_field)}"})
+            return jsonify({"answer": f"{resposta_prefixo}Temos estes horarios disponiveis para {format_assistencia_day(customer_data.get('dia'))}:\n{chr(10).join(horarios_lista)}\n\nQual horario prefere?"})
+        return jsonify({"answer": f"{resposta_prefixo}{ASSISTENCIA_QUESTIONS[upcoming_field]}"})
 
     tecnico = tecnico_disponivel_assistencia(customer_data)
     if tecnico is None and listar_tecnicos_assistencia():
@@ -3184,7 +3117,7 @@ def assistencia_tecnica_chat():
             customer_data["dia"] = ""
             save_assistencia_state(customer_data)
             return jsonify({"answer": "Nao ha horarios livres nessa data. Escolha outro dia para o atendimento."})
-        return jsonify({"answer": build_assistencia_horario_prompt(customer_data, horarios_lista, "Esse horario nao esta mais disponivel.\n")})
+        return jsonify({"answer": f"Esse horario nao esta mais disponivel.\nHorarios livres para {format_assistencia_day(customer_data.get('dia'))}:\n{chr(10).join(horarios_lista)}\n\nQual horario prefere?"})
 
     if tecnico:
         customer_data["tecnico_sugerido_id"] = tecnico["id"]

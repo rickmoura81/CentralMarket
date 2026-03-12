@@ -455,7 +455,7 @@
       tocarAlerta();
 
       if ("Notification" in window && Notification.permission === "granted") {
-        new Notification("CentralMarket - Novo Serviço", { body: msg });
+        new Notification("CentralMarket - Novo Atendimento", { body: msg });
       }
     }
 
@@ -638,7 +638,7 @@
 
       return `
         <article class="card">
-          <h2 class="os-title">OS #${item.id} - ${esc(item.servico_nome || "Servico")}</h2>
+          <h2 class="os-title">OS #${item.id} - ${esc(item.servico_nome || "Produto com Defeito")}</h2>
           <p class="os-time">${esc(item.hora || "Sem horario")} - ${esc(item.data_agendamento || "")}</p>
           <span class="status ${statusClass(item.status)}">${esc(item.status || "Agendado")}</span>
 

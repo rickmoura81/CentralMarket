@@ -17,6 +17,34 @@ h2{
     margin-bottom: 20px;
 }
 
+.toolbar{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:12px;
+    margin-bottom:16px;
+    flex-wrap:wrap;
+}
+
+.search-box{
+    flex:1;
+    min-width:280px;
+}
+
+.search-box input{
+    width:100%;
+    padding:10px 12px;
+    border:1px solid #cbd5e1;
+    border-radius:8px;
+    font-size:14px;
+    background:white;
+}
+
+.search-info{
+    color:#475569;
+    font-size:14px;
+}
+
 table{
     width: 100%;
     border-collapse: collapse;
@@ -96,11 +124,20 @@ button{
 
 <h2>📅 Ordens de Serviço</h2>
 
+<div class="toolbar">
+    <div class="search-box">
+        <input type="text" id="buscaOs" placeholder="Buscar por ID, cliente, produto, telefone, endereco ou status">
+    </div>
+    <div class="search-info">
+        <span id="contadorOrdens">{{ ordens|length }}</span> ordem(ns)
+    </div>
+</div>
+
 <table>
 
 <tr>
 <th>ID</th>
-<th>Serviço</th>
+<th>Produto com Defeito</th>
 <th>Cliente</th>
 <th>Telefone</th>
 <th>Endereço</th>
@@ -113,7 +150,7 @@ button{
 
 {% for os in ordens %}
 
-<tr>
+<tr class="ordem-row">
 
 <td>{{ os.id }}</td>
 
@@ -157,15 +194,15 @@ button{
 
 {% if os.status == "Agendado" %}
 
-<a href="/atualizar_status/{{ os.id }}/Em Atendimento">
-<button class="btn-iniciar">▶ Iniciar</button>
-</a>
+<form method="POST" action="/atualizar_status/{{ os.id }}/Em Atendimento" style="display:inline;">
+<button type="submit" class="btn-iniciar">▶ Iniciar</button>
+</form>
 
 {% elif os.status == "Em Atendimento" %}
 
-<a href="/atualizar_status/{{ os.id }}/Finalizado">
-<button class="btn-finalizar">✔ Finalizar</button>
-</a>
+<form method="POST" action="/atualizar_status/{{ os.id }}/Finalizado" style="display:inline;">
+<button type="submit" class="btn-finalizar">✔ Finalizar</button>
+</form>
 
 {% else %}
 
@@ -205,5 +242,27 @@ href="https://www.google.com/maps/search/?api=1&query={{ os.endereco }} {{ os.nu
 </a>
 
 </body>
+
+<script>
+const campoBuscaOs = document.getElementById("buscaOs");
+const linhasOs = Array.from(document.querySelectorAll(".ordem-row"));
+const contadorOrdens = document.getElementById("contadorOrdens");
+
+function filtrarOrdens() {
+    const termo = (campoBuscaOs.value || "").trim().toLowerCase();
+    let visiveis = 0;
+
+    linhasOs.forEach((linha) => {
+        const texto = linha.innerText.toLowerCase();
+        const mostrar = !termo || texto.includes(termo);
+        linha.style.display = mostrar ? "" : "none";
+        if (mostrar) visiveis += 1;
+    });
+
+    contadorOrdens.innerText = String(visiveis);
+}
+
+campoBuscaOs.addEventListener("input", filtrarOrdens);
+</script>
 
 </html>

@@ -130,7 +130,7 @@ align-items:center;
 
 <input type="text" name="nome" placeholder="Nome">
 
-<input type="text" name="cpf" placeholder="CPF">
+<input type="text" name="cpf" id="cpfFuncionario" placeholder="CPF" inputmode="numeric">
 
 <input type="text" name="telefone" placeholder="Telefone">
 
@@ -218,6 +218,20 @@ align-items:center;
 {% endfor %}
 
 </table>
+
+<script>
+function formatarCpf(valor){
+const digits=(valor || "").replace(/\D/g,'').slice(0,11);
+if(digits.length<=3) return digits;
+if(digits.length<=6) return `${digits.slice(0,3)}.${digits.slice(3)}`;
+if(digits.length<=9) return `${digits.slice(0,3)}.${digits.slice(3,6)}.${digits.slice(6)}`;
+return `${digits.slice(0,3)}.${digits.slice(3,6)}.${digits.slice(6,9)}-${digits.slice(9)}`;
+}
+
+document.getElementById("cpfFuncionario").addEventListener("input", function(){
+this.value = formatarCpf(this.value);
+});
+</script>
 
 </div>
 
