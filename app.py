@@ -7216,4 +7216,5 @@ if __name__ == "__main__":
     elif use_adhoc_ssl:
         ssl_context = "adhoc"
 
-    app.run(host=host, port=port, debug=debug, ssl_context=ssl_context)
+   if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
